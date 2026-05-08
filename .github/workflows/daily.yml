@@ -42,5 +42,9 @@ jobs:
           else
             git add data.json
             git commit -m "chore: data.json atualizado em $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            git push
+            for i in 1 2 3; do
+              git pull --rebase origin main && git push && break
+              echo "Push falhou (tentativa $i), tentando de novo..."
+              sleep 3
+            done
           fi
