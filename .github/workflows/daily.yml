@@ -1,0 +1,46 @@
+name: Daily data update
+
+on:
+  schedule:
+    # 21:00 UTC = 18:00 BRT (PDFs Itaú já foram publicados às ~9h)
+    - cron: '0 21 * * 1-5'
+  # Permite rodar manualmente pela aba Actions do GitHub
+  workflow_dispatch:
+  # Roda automaticamente também quando você faz push (útil para o primeiro deploy)
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/build_data.py'
+      - '.github/workflows/daily.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pdfplumber
+
+      - name: Run build_data.py
+        run: python scripts/build_data.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "engage-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if git diff --quiet data.json; then
+            echo "Sem mudanças em data.json"
+          else
+            git add data.json
+            git commit -m "chore: data.json atualizado em $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push
+          fi
