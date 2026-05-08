@@ -139,7 +139,8 @@ function calcVolMed30(historico) {
   return { volume: vol, qtd: qtd, neg: neg, pregoes: ult30.length };
 }
 
-function reconstruirCotaPatrimonial({ cotaInicial, dtLiqPrimaria, dtRef, yldPctCdi, cdiSerie, feriadosSet }) {
+function reconstruirCotaPatrimonial({ cotaInicial, dtLiqPrimaria, dtRef, yldPctCdi, cdiSerie, feriadosSet , historicoPatrim}) {
+  if (Array.isArray(historicoPatrim) && historicoPatrim.length) return historicoPatrim;
   const dus = listarDU(dtLiqPrimaria, dtRef, feriadosSet);
   let cota = cotaInicial;
   const out = [{ d: dtLiqPrimaria, cota: cotaInicial }];
@@ -657,6 +658,7 @@ function App({ data }) {
       yldPctCdi: meta.yld_pct_cdi,
       cdiSerie: cdiSerieEfetiva,
       feriadosSet,
+  historicoPatrim: DATA.historico_patrim ? DATA.historico_patrim[tickerSel] : null,
     });
     
     let cotaPatrimFut = [];
