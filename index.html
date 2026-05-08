@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Engage · Itaú Isentos · Dashboard ISET11 / ISEN11 / ISTT11 / ISNT11</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
+<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #F9FAFB; min-height: 100vh; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #111827; }
+  #root { width: 100%; }
+  * { box-sizing: border-box; }
+  button { font-family: inherit; }
+  input, select { font-family: inherit; }
+  .rfc-spin { animation: rfc-spin 1s linear infinite; }
+  @keyframes rfc-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+  .recharts-tooltip-wrapper { outline: none !important; }
+  .recharts-default-tooltip { border-radius: 8px !important; border: 1px solid #E5E7EB !important; }
+  .loading-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; flex-direction: column; gap: 16px; color: #6B7280; font-size: 14px; }
+  .loading-spinner { width: 40px; height: 40px; border: 3px solid #E5E7EB; border-top-color: #185FA5; border-radius: 50%; animation: rfc-spin 0.8s linear infinite; }
+  .err-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; flex-direction: column; gap: 8px; color: #9B1B1B; font-size: 14px; padding: 32px; text-align: center; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="loading-screen">
+    <div class="loading-spinner"></div>
+    <div>Carregando dados Engage...</div>
+  </div>
+</div>
+
+<script>
+// Carrega data.json antes de inicializar o React
+(async function bootstrap() {
+  try {
+    const r = await fetch('./data.json?v=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    window.__DATA__ = await r.json();
+    // Marca para o body script saber que pode renderizar
+    window.__DATA_READY__ = true;
+    // Dispara um evento para o body script consumir
+    window.dispatchEvent(new Event('data-ready'));
+  } catch (err) {
+    console.error('Falha ao carregar data.json', err);
+    document.getElementById('root').innerHTML =
+      '<div class="err-screen">' +
+        '<strong>Erro ao carregar dados</strong>' +
+        '<div style="color:#6B7280">' + (err.message || err) + '</div>' +
+        '<div style="color:#9CA3AF;font-size:12px;margin-top:12px">Tente recarregar a página em alguns minutos.</div>' +
+      '</div>';
+  }
+})();
+</script>
+
+<script type="text/babel" data-presets="react">
+
+const { useState, useEffect, useMemo } = React;
+const e = React.createElement;
+const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } = Recharts;
+
+const Icon = ({ name, size = 14, style = {}, className = '' }) => {
+  const paths = {
+    'trending-up': 'M3 17l6-6 4 4 8-8M14 7h7v7',
+    'calendar': 'M3 4h18v18H3zM3 10h18M8 2v4M16 2v4',
+    'dollar': 'M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6',
+    'activity': 'M22 12h-4l-3 9L9 3l-3 9H2',
+    'alert-circle': 'M12 2a10 10 0 100 20 10 10 0 000-20zM12 8v4M12 16h.01',
+    'refresh-cw': 'M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15',
+    'calculator': 'M4 2h16v20H4zM8 6h8M8 10h2M14 10h2M8 14h2M14 14h2M8 18h2M14 18h2',
+    'info': 'M12 2a10 10 0 100 20 10 10 0 000-20zM12 8h.01M11 12h1v4h1',
+    'chevron-down': 'M6 9l6 6 6-6',
+  };
+  const d = paths[name];
+  if (!d) return null;
+  return e('svg', {
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+    strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', style, className,
+    'aria-hidden': true,
+  }, e('path', { d }));
+};
+const TrendingUp = (p) => Icon({ ...p, name: 'trending-up' });
+const Calendar = (p) => Icon({ ...p, name: 'calendar' });
+const DollarSign = (p) => Icon({ ...p, name: 'dollar' });
+const Activity = (p) => Icon({ ...p, name: 'activity' });
+const AlertCircle = (p) => Icon({ ...p, name: 'alert-circle' });
+const RefreshCw = (p) => Icon({ ...p, name: 'refresh-cw' });
+const Calculator = (p) => Icon({ ...p, name: 'calculator' });
+const Info = (p) => Icon({ ...p, name: 'info' });
+const ChevronDown = (p) => Icon({ ...p, name: 'chevron-down' });
+
+const DATA = window.__DATA__;
+const LOGO_DATA_URI = 'data:image/png;base64,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';
+
+const FUNDO_CORES = {
+  ISET11: { primary: '#185FA5', soft: '#E6F1FB', dark: '#0C447C' },
+  ISEN11: { primary: '#0F6E56', soft: '#E1F5EE', dark: '#085041' },
+  ISTT11: { primary: '#534AB7', soft: '#EEEDFE', dark: '#3C3489' },
+  ISNT11: { primary: '#993C1D', soft: '#FAECE7', dark: '#712B13' },
+};
+
+function parseDate(iso) { return new Date(iso + 'T12:00:00'); }
+function fmtDateBR(iso) {
+  const d = parseDate(iso);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function fmtMonthBR(iso) {
+  const d = parseDate(iso);
+  return d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+}
+function fmtMoney(v) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtMoneyCompact(v) {
+  if (v >= 1e9) return 'R$ ' + (v/1e9).toFixed(2) + ' bi';
+  if (v >= 1e6) return 'R$ ' + (v/1e6).toFixed(2) + ' mi';
+  if (v >= 1e3) return 'R$ ' + (v/1e3).toFixed(0) + ' mil';
+  return 'R$ ' + v.toFixed(0);
+}
+function fmtPct(v, decs=2) { return v.toFixed(decs).replace('.', ',') + '%'; }
+
+function isDU(iso, feriadosSet) {
+  const d = parseDate(iso);
+  const wd = d.getDay();
+  if (wd === 0 || wd === 6) return false;
+  return !feriadosSet.has(iso);
+}
+function listarDU(dataIniIso, dataFimIso, feriadosSet) {
+  const out = [];
+  const fim = parseDate(dataFimIso);
+  let cur = parseDate(dataIniIso);
+  while (cur <= fim) {
+    const iso = cur.toISOString().split('T')[0];
+    if (isDU(iso, feriadosSet)) out.push(iso);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+function contarDU(dataIniIso, dataFimIso, feriadosSet) {
+  let n = 0;
+  const ini = parseDate(dataIniIso);
+  const fim = parseDate(dataFimIso);
+  let cur = new Date(ini);
+  cur.setDate(cur.getDate() + 1);
+  while (cur <= fim) {
+    const iso = cur.toISOString().split('T')[0];
+    if (isDU(iso, feriadosSet)) n++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return n;
+}
+
+function calcVolMed30(historico) {
+  const ult30 = historico.slice(-30);
+  if (ult30.length === 0) return { volume: 0, qtd: 0, neg: 0, pregoes: 0 };
+  const vol = ult30.reduce((a, x) => a + x.v, 0) / ult30.length;
+  const qtd = ult30.reduce((a, x) => a + x.q, 0) / ult30.length;
+  const neg = ult30.reduce((a, x) => a + x.n, 0) / ult30.length;
+  return { volume: vol, qtd: qtd, neg: neg, pregoes: ult30.length };
+}
+
+function reconstruirCotaPatrimonial({ cotaInicial, dtLiqPrimaria, dtRef, yldPctCdi, cdiSerie, feriadosSet }) {
+  const dus = listarDU(dtLiqPrimaria, dtRef, feriadosSet);
+  let cota = cotaInicial;
+  const out = [{ d: dtLiqPrimaria, cota: cotaInicial }];
+  for (let i = 1; i < dus.length; i++) {
+    const iso = dus[i];
+    const cdiDia = cdiSerie[iso] !== undefined ? cdiSerie[iso] : null;
+    if (cdiDia !== null) {
+      cota = cota * (1 + (yldPctCdi/100) * cdiDia);
+    }
+    out.push({ d: iso, cota: cota });
+  }
+  return out;
+}
+function projetarCotaFutura({ cotaAtual, dtRef, dtFinal, yldPctCdi, cdiAaProj, feriadosSet }) {
+  const dus = listarDU(dtRef, dtFinal, feriadosSet);
+  const cdiDia = Math.pow(1 + cdiAaProj/100, 1/252) - 1;
+  let cota = cotaAtual;
+  const out = [];
+  for (let i = 1; i < dus.length; i++) {
+    cota = cota * (1 + (yldPctCdi/100) * cdiDia);
+    out.push({ d: dus[i], cota: cota });
+  }
+  return out;
+}
+
+function calcularCurvaCDI({ cotaInicial, dtCompra, yldAlvoPctCdi, cdiSerie, cdiAaProj, dtAteHoje, dtFinal, feriadosSet }) {
+  const cdiDiaProj = Math.pow(1 + cdiAaProj/100, 1/252) - 1;
+  const dus = listarDU(dtCompra, dtFinal, feriadosSet);
+  let val = cotaInicial;
+  const out = [{ d: dtCompra, valor: cotaInicial }];
+  for (let i = 1; i < dus.length; i++) {
+    const iso = dus[i];
+    let cdiDia;
+    if (iso <= dtAteHoje && cdiSerie[iso] !== undefined) {
+      cdiDia = cdiSerie[iso];
+    } else {
+      cdiDia = cdiDiaProj;
+    }
+    val = val * (1 + (yldAlvoPctCdi/100) * cdiDia);
+    out.push({ d: iso, valor: val });
+  }
+  return out;
+}
+
+function StatCard({ label, value, sub, accent }) {
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 12,
+      padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4
+    }}>
+      <span style={{ fontSize: 11, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500 }}>{label}</span>
+      <span style={{ fontSize: 22, fontWeight: 600, color: accent || '#111827', lineHeight: 1.1 }}>{value}</span>
+      {sub && <span style={{ fontSize: 11, color: '#9CA3AF' }}>{sub}</span>}
+    </div>
+  );
+}
+
+function FundoCard({ ticker, meta, volMed, onSelect, isSelected }) {
+  const cores = FUNDO_CORES[ticker];
+  return (
+    <button
+      onClick={() => onSelect(ticker)}
+      style={{
+        width: '100%', textAlign: 'left', cursor: 'pointer', border: 'none',
+        background: isSelected ? cores.soft : '#FFFFFF',
+        borderTop: `3px solid ${cores.primary}`, borderRadius: 12, padding: '16px 18px',
+        boxShadow: isSelected ? `0 0 0 2px ${cores.primary}33` : '0 1px 3px rgba(0,0,0,0.04)',
+        transition: 'all 0.15s ease',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: cores.dark, letterSpacing: '-0.02em' }}>{ticker}</div>
+          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{meta.nome_completo}</div>
+        </div>
+        <span style={{
+          fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 600,
+          background: cores.soft, color: cores.dark
+        }}>{meta.yld_pct_cdi}% CDI</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
+        <div>
+          <div style={{ color: '#9CA3AF', fontSize: 10 }}>Cota Patrim.</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{fmtMoney(meta.cota_patrimonial_ref)}</div>
+        </div>
+        <div>
+          <div style={{ color: '#9CA3AF', fontSize: 10 }}>Duration</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.duration.toFixed(2).replace('.',',')} anos</div>
+        </div>
+        <div>
+          <div style={{ color: '#9CA3AF', fontSize: 10 }}>Vol. Médio 30d</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{fmtMoneyCompact(volMed.volume)}</div>
+        </div>
+        <div>
+          <div style={{ color: '#9CA3AF', fontSize: 10 }}>PL</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{fmtMoneyCompact(meta.pl)}</div>
+        </div>
+      </div>
+      <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9CA3AF' }}>
+        <span><Calendar size={10} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />Venc: {fmtDateBR(meta.vencimento)}</span>
+        <span>{volMed.neg.toFixed(0)} negócios/dia</span>
+      </div>
+    </button>
+  );
+}
+
+function CDIStatusBadge({ status, cdiAaAtual, lastUpdate }) {
+  const config = {
+    loading:  { color: '#9CA3AF', bg: '#F3F4F6', icon: <RefreshCw size={11} className="rfc-spin" />, text: 'Carregando CDI...' },
+    success:  { color: '#0F6E56', bg: '#E1F5EE', icon: <Activity size={11} />, text: `CDI ${fmtPct(cdiAaAtual, 2)} a.a. — ${lastUpdate || 'BCB Série 12'}` },
+    fallback: { color: '#854F0B', bg: '#FAEEDA', icon: <AlertCircle size={11} />, text: 'CDI manual (API BCB indisponível)' },
+  };
+  const c = config[status];
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+      borderRadius: 999, background: c.bg, color: c.color, fontSize: 11, fontWeight: 600
+    }}>
+      {c.icon}{c.text}
+    </span>
+  );
+}
+
+function BrapiBadge({ status, ultAtt }) {
+  const config = {
+    idle:               { color: '#9CA3AF', bg: '#F3F4F6', icon: <RefreshCw size={11} />, text: 'B3 aguardando...' },
+    no_token:           { color: '#9CA3AF', bg: '#F3F4F6', icon: <RefreshCw size={11} />, text: 'B3 aguardando...' },
+    loading:            { color: '#9CA3AF', bg: '#F3F4F6', icon: <RefreshCw size={11} className="rfc-spin" />, text: 'B3 buscando Yahoo...' },
+    success:            { color: '#0F6E56', bg: '#E1F5EE', icon: <Activity size={11} />, text: 'B3 ao vivo (Yahoo)' },
+    success_today_only: { color: '#0F6E56', bg: '#E1F5EE', icon: <Activity size={11} />, text: 'B3 cotação de hoje (Yahoo)' },
+    partial:            { color: '#854F0B', bg: '#FAEEDA', icon: <AlertCircle size={11} />, text: 'B3 parcial (alguns tickers)' },
+    error:              { color: '#854F0B', bg: '#FAEEDA', icon: <AlertCircle size={11} />, text: 'B3 erro · usando dados embutidos' },
+    token_invalid:      { color: '#9B1B1B', bg: '#FAE3E3', icon: <AlertCircle size={11} />, text: 'B3 token inválido' },
+  };
+  const c = config[status] || config.idle;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+      borderRadius: 999, background: c.bg, color: c.color, fontSize: 11, fontWeight: 600
+    }}>
+      {c.icon}{c.text}
+    </span>
+  );
+}
+
+const ITAU_PDF_URLS = {
+  ISET11: 'https://assetfront.arquivosparceiros.cloud.itau.com.br/FND/Sensibilidade-ISET.pdf',
+  ISEN11: 'https://assetfront.arquivosparceiros.cloud.itau.com.br/FND/Sensibilidade-ISEN.pdf',
+  ISTT11: 'https://assetfront.arquivosparceiros.cloud.itau.com.br/FND/Sensibilidade-ISTT.pdf',
+  ISNT11: 'https://assetfront.arquivosparceiros.cloud.itau.com.br/FND/Sensibilidade-ISNT.pdf',
+};
+
+const CORS_PROXIES = [
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  (url) => url,
+];
+
+async function fetchPdfArrayBuffer(targetUrl) {
+  let lastErr = null;
+  for (const proxyFn of CORS_PROXIES) {
+    try {
+      const r = await fetch(proxyFn(targetUrl));
+      if (!r.ok) { lastErr = new Error('HTTP ' + r.status); continue; }
+      const buf = await r.arrayBuffer();
+      if (buf.byteLength < 1000) { lastErr = new Error('Resposta muito pequena'); continue; }
+      const head = new Uint8Array(buf, 0, 5);
+      const hex = String.fromCharCode(...head);
+      if (!hex.startsWith('%PDF')) { lastErr = new Error('Não é PDF'); continue; }
+      return buf;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('Todos os proxies falharam');
+}
+
+async function pdfArrayBufferToText(buf) {
+  if (typeof window === 'undefined' || !window.pdfjsLib) {
+    throw new Error('pdf.js não carregado');
+  }
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  let texto = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const linha = content.items.map(it => it.str).join(' ');
+    texto += linha + '\n';
+  }
+  return texto;
+}
+
+function parseSensibilidadeItau(texto) {
+  const out = { dataRef: null, cotaPatrim: null, pl: null, duration: null, yieldPctCdi: null, qtdCotas: null, caixaPct: null };
+  
+  const mData = texto.match(/Data de refer[êe]ncia:\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (mData) out.dataRef = `${mData[3]}-${mData[2]}-${mData[1]}`;
+  
+  const mCota = texto.match(/Valor Cota Patrimonial\s*([\d.,]+)/i);
+  if (mCota) out.cotaPatrim = parseFloat(mCota[1].replace(/\./g, '').replace(',', '.'));
+  
+  const mPL = texto.match(/Patrim[ôo]nio L[íi]quido\s*R\$\s*([\d.,]+)/i);
+  if (mPL) out.pl = parseFloat(mPL[1].replace(/\./g, '').replace(',', '.'));
+  
+  const mDur = texto.match(/Duration da carteira\s*([\d.,]+)/i);
+  if (mDur) out.duration = parseFloat(mDur[1].replace(',', '.'));
+  
+  const mYld = texto.match(/Yield Cota patrimonial[^\d]*([\d.,]+)\s*%/i);
+  if (mYld) out.yieldPctCdi = parseFloat(mYld[1].replace(',', '.'));
+  
+  const mQtd = texto.match(/Quantidade total de cotas\s*([\d.,]+)/i);
+  if (mQtd) out.qtdCotas = parseFloat(mQtd[1].replace(/\./g, '').replace(',', '.'));
+  
+  const mCaixa = texto.match(/Posi[çc][ãa]o em Caixa\s*([\d.,]+)\s*%/i);
+  if (mCaixa) out.caixaPct = parseFloat(mCaixa[1].replace(',', '.'));
+  
+  return out;
+}
+
+function App() {
+  const feriadosSet = useMemo(() => new Set(DATA.feriados), []);
+  const [tickerSel, setTickerSel] = useState('ISET11');
+  const [cdiStatus, setCdiStatus] = useState('loading');
+  const [cdiSerie, setCdiSerie] = useState({});
+  const [cdiManual, setCdiManual] = useState(15.00);
+  const [usarManual, setUsarManual] = useState(false);
+  const [percCdiCurva, setPercCdiCurva] = useState(93);
+  const [showFutureProjection, setShowFutureProjection] = useState(true);
+
+  const [simTicker, setSimTicker] = useState('ISET11');
+  const [simPreco, setSimPreco] = useState(112.40);
+  const [simCorretagem, setSimCorretagem] = useState(0.5);
+
+  const [janelaPreset, setJanelaPreset] = useState('TUDO');
+  const [janelaIni, setJanelaIni] = useState('');
+  const [janelaFim, setJanelaFim] = useState('');
+  
+  const [brapiToken, setBrapiToken] = useState(() => {
+    try { return localStorage.getItem('engage_brapi_token') || ''; } catch (e) { return ''; }
+  });
+  const [brapiStatus, setBrapiStatus] = useState('idle');
+  const [brapiHist, setBrapiHist] = useState({});
+  const [brapiUltAtt, setBrapiUltAtt] = useState(null);
+  
+  const [cotasPatrimOverride, setCotasPatrimOverride] = useState(() => {
+    try {
+      const stored = localStorage.getItem('engage_cotas_patrim');
+      return stored ? JSON.parse(stored) : {};
+    } catch (e) { return {}; }
+  });
+  
+  const [showSettings, setShowSettings] = useState(false);
+  const [itauUpdateStatus, setItauUpdateStatus] = useState('idle');
+  const [itauUpdateMsg, setItauUpdateMsg] = useState('');
+  const [itauUltAtt, setItauUltAtt] = useState(() => {
+    try { return localStorage.getItem('engage_itau_ult_att') || ''; } catch (e) { return ''; }
+  });
+  
+  const saveBrapiToken = (token) => {
+    setBrapiToken(token);
+    try {
+      if (token) localStorage.setItem('engage_brapi_token', token);
+      else localStorage.removeItem('engage_brapi_token');
+    } catch (e) {}
+  };
+  
+  const saveCotaPatrimOverride = (ticker, dataIso, valor) => {
+    const next = { ...cotasPatrimOverride };
+    if (!next[ticker]) next[ticker] = {};
+    if (valor === null || valor === undefined || valor === '') {
+      delete next[ticker][dataIso];
+      if (Object.keys(next[ticker]).length === 0) delete next[ticker];
+    } else {
+      next[ticker][dataIso] = { valor: Number(valor), atualizadoEm: new Date().toISOString() };
+    }
+    setCotasPatrimOverride(next);
+    try { localStorage.setItem('engage_cotas_patrim', JSON.stringify(next)); } catch (e) {}
+  };
+  
+  const atualizarPdfsItau = async () => {
+    setItauUpdateStatus('loading');
+    setItauUpdateMsg('Verificando pdf.js...');
+    
+    let tentativasPdfJs = 0;
+    while ((typeof window === 'undefined' || !window.pdfjsLib) && tentativasPdfJs < 20) {
+      await new Promise(r => setTimeout(r, 250));
+      tentativasPdfJs++;
+    }
+    if (typeof window === 'undefined' || !window.pdfjsLib) {
+      setItauUpdateStatus('error');
+      setItauUpdateMsg('Biblioteca pdf.js não carregou após 5s. Verifique sua conexão e recarregue a página.');
+      return;
+    }
+    
+    setItauUpdateMsg('Baixando PDFs do Itaú via proxy CORS...');
+    const tickers = ['ISET11','ISEN11','ISTT11','ISNT11'];
+    const resultados = {};
+    const erros = [];
+    
+    for (const t of tickers) {
+      try {
+        setItauUpdateMsg(`Processando ${t}...`);
+        const buf = await fetchPdfArrayBuffer(ITAU_PDF_URLS[t]);
+        const texto = await pdfArrayBufferToText(buf);
+        const dados = parseSensibilidadeItau(texto);
+        if (!dados.dataRef || !dados.cotaPatrim) {
+          throw new Error('PDF sem dados esperados');
+        }
+        resultados[t] = dados;
+      } catch (e) {
+        erros.push(`${t}: ${e.message}`);
+      }
+    }
+    
+    const ok = Object.keys(resultados);
+    if (ok.length === 0) {
+      setItauUpdateStatus('error');
+      setItauUpdateMsg(`Falha em todos. Provável bloqueio de proxies CORS. Detalhes: ${erros.slice(0,2).join(' | ')}`);
+      return;
+    }
+    
+    const nextOverride = { ...cotasPatrimOverride };
+    for (const t of ok) {
+      const d = resultados[t];
+      if (!nextOverride[t]) nextOverride[t] = {};
+      nextOverride[t][d.dataRef] = { valor: d.cotaPatrim, atualizadoEm: new Date().toISOString(),
+                                     pl: d.pl, duration: d.duration, yieldPctCdi: d.yieldPctCdi,
+                                     qtdCotas: d.qtdCotas, caixaPct: d.caixaPct };
+    }
+    setCotasPatrimOverride(nextOverride);
+    try { localStorage.setItem('engage_cotas_patrim', JSON.stringify(nextOverride)); } catch (e) {}
+    
+    const agora = new Date().toISOString();
+    setItauUltAtt(agora);
+    try { localStorage.setItem('engage_itau_ult_att', agora); } catch (e) {}
+    
+    if (erros.length === 0) {
+      setItauUpdateStatus('success');
+      setItauUpdateMsg(`✓ Atualizados ${ok.join(', ')} com sucesso.`);
+    } else {
+      setItauUpdateStatus('partial');
+      setItauUpdateMsg(`✓ Atualizados: ${ok.join(', ')}. Falhou: ${erros.join(' | ')}.`);
+    }
+  };
+
+  useEffect(() => {
+    const fetchCDI = async () => {
+      try {
+        const hoje = new Date();
+        const dd = String(hoje.getDate()).padStart(2, '0');
+        const mm = String(hoje.getMonth() + 1).padStart(2, '0');
+        const yyyy = hoje.getFullYear();
+        const dataFinal = `${dd}/${mm}/${yyyy}`;
+        const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial=01/05/2025&dataFinal=${dataFinal}`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const arr = await r.json();
+        const out = {};
+        for (const item of arr) {
+          const [d, m, y] = item.data.split('/');
+          const iso = `${y}-${m}-${d}`;
+          out[iso] = parseFloat(item.valor) / 100;
+        }
+        setCdiSerie(out);
+        setCdiStatus('success');
+      } catch (e) {
+        setCdiStatus('fallback');
+        setUsarManual(true);
+      }
+    };
+    fetchCDI();
+  }, []);
+  
+  useEffect(() => {
+    const fetchYahoo = async () => {
+      setBrapiStatus('loading');
+      const tickers = ['ISET11','ISEN11','ISTT11','ISNT11'];
+      const out = {};
+      const erros = [];
+      
+      for (const t of tickers) {
+        const symbol = t + '.SA';
+        const target = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1d`;
+        let dadosOk = null;
+        for (const proxyFn of CORS_PROXIES) {
+          try {
+            const r = await fetch(proxyFn(target));
+            if (!r.ok) continue;
+            const json = await r.json();
+            const result = json?.chart?.result?.[0];
+            if (!result || !Array.isArray(result.timestamp)) continue;
+            const ts = result.timestamp;
+            const closes = result.indicators?.quote?.[0]?.close || [];
+            const vols = result.indicators?.quote?.[0]?.volume || [];
+            const serie = [];
+            for (let i = 0; i < ts.length; i++) {
+              if (closes[i] == null) continue;
+              const iso = new Date(ts[i] * 1000).toISOString().split('T')[0];
+              serie.push({
+                d: iso,
+                c: Number(closes[i].toFixed(4)),
+                v: Number((vols[i] || 0).toFixed(0)),
+                q: 0, n: 0,
+              });
+            }
+            serie.sort((a, b) => a.d.localeCompare(b.d));
+            const meta = result.meta;
+            if (meta?.regularMarketPrice && meta?.regularMarketTime) {
+              const todayIso = new Date(meta.regularMarketTime * 1000).toISOString().split('T')[0];
+              if (!serie.length || serie[serie.length - 1].d !== todayIso) {
+                serie.push({
+                  d: todayIso,
+                  c: Number(meta.regularMarketPrice.toFixed(4)),
+                  v: Number((meta.regularMarketVolume || 0).toFixed(0)),
+                  q: 0, n: 0,
+                });
+              }
+            }
+            if (serie.length > 0) { dadosOk = serie; break; }
+          } catch (e) {}
+        }
+        if (dadosOk) out[t] = dadosOk;
+        else erros.push(t);
+      }
+      
+      if (Object.keys(out).length === 0) {
+        setBrapiStatus('error');
+        return;
+      }
+      setBrapiHist(out);
+      setBrapiUltAtt(new Date().toISOString());
+      setBrapiStatus(erros.length === 0 ? 'success' : 'partial');
+    };
+    fetchYahoo();
+  }, []);
+
+  const cdiAaAtual = useMemo(() => {
+    if (usarManual) return cdiManual;
+    const isos = Object.keys(cdiSerie).sort();
+    if (isos.length < 5) return cdiManual;
+    const ultimos = isos.slice(-5).map(iso => cdiSerie[iso]);
+    const media = ultimos.reduce((a, b) => a + b, 0) / ultimos.length;
+    return (Math.pow(1 + media, 252) - 1) * 100;
+  }, [cdiSerie, cdiManual, usarManual]);
+
+  const historicoPorFundo = useMemo(() => {
+    const out = {};
+    for (const t of ['ISET11','ISEN11','ISTT11','ISNT11']) {
+      const embutido = DATA.historico[t] || [];
+      const live = ((brapiStatus === 'success' || brapiStatus === 'success_today_only' || brapiStatus === 'partial') && brapiHist[t]) ? brapiHist[t] : [];
+      if (live.length === 0) {
+        out[t] = embutido;
+        continue;
+      }
+      const map = {};
+      for (const x of embutido) map[x.d] = x;
+      for (const x of live) map[x.d] = { ...map[x.d], ...x };
+      out[t] = Object.values(map).sort((a, b) => a.d.localeCompare(b.d));
+    }
+    return out;
+  }, [brapiHist, brapiStatus]);
+  
+  const volMedPorFundo = useMemo(() => {
+    const o = {};
+    for (const t of ['ISET11','ISEN11','ISTT11','ISNT11']) {
+      o[t] = calcVolMed30(historicoPorFundo[t]);
+    }
+    return o;
+  }, [historicoPorFundo]);
+  
+  const metaEfetiva = useMemo(() => {
+    const out = {};
+    for (const t of ['ISET11','ISEN11','ISTT11','ISNT11']) {
+      const base = DATA.fundos[t];
+      const overrides = cotasPatrimOverride[t] || {};
+      const datas = Object.keys(overrides).sort();
+      if (datas.length > 0) {
+        const ultIso = datas[datas.length - 1];
+        const ultObj = overrides[ultIso];
+        const merged = { ...base };
+        if (ultIso > base.data_ref) {
+          merged.cota_patrimonial_ref = ultObj.valor;
+          merged.data_ref = ultIso;
+        }
+        if (ultObj.pl != null) merged.pl = ultObj.pl;
+        if (ultObj.duration != null) merged.duration = ultObj.duration;
+        if (ultObj.yieldPctCdi != null) merged.yld_pct_cdi = ultObj.yieldPctCdi;
+        if (ultObj.qtdCotas != null) merged.qtd_cotas = ultObj.qtdCotas;
+        if (ultObj.caixaPct != null) merged.caixa_pct = ultObj.caixaPct;
+        out[t] = merged;
+      } else {
+        out[t] = base;
+      }
+    }
+    return out;
+  }, [cotasPatrimOverride]);
+  
+  const meta = metaEfetiva[tickerSel];
+  const historicoMercado = historicoPorFundo[tickerSel];
+
+  const dadosGrafico = useMemo(() => {
+    if (cdiStatus === 'loading') return [];
+    
+    const cdiSerieEfetiva = usarManual ? {} : cdiSerie;
+    const cdiAaProj = cdiAaAtual;
+    
+    const dtFinal = showFutureProjection ? meta.vencimento : meta.data_ref;
+    
+    const cotaPatrimReconstr = reconstruirCotaPatrimonial({
+      cotaInicial: meta.cota_inicial,
+      dtLiqPrimaria: meta.data_liq_primaria,
+      dtRef: meta.data_ref,
+      yldPctCdi: meta.yld_pct_cdi,
+      cdiSerie: cdiSerieEfetiva,
+      feriadosSet,
+    });
+    
+    let cotaPatrimFut = [];
+    if (showFutureProjection) {
+      cotaPatrimFut = projetarCotaFutura({
+        cotaAtual: meta.cota_patrimonial_ref,
+        dtRef: meta.data_ref,
+        dtFinal: meta.vencimento,
+        yldPctCdi: meta.yld_pct_cdi,
+        cdiAaProj,
+        feriadosSet,
+      });
+    }
+    
+    const curvaSaida = calcularCurvaCDI({
+      cotaInicial: meta.cota_inicial,
+      dtCompra: meta.data_liq_primaria,
+      yldAlvoPctCdi: percCdiCurva,
+      cdiSerie: cdiSerieEfetiva,
+      cdiAaProj,
+      dtAteHoje: meta.data_ref,
+      dtFinal,
+      feriadosSet,
+    });
+    
+    const cotaPatrimCompleta = [...cotaPatrimReconstr, ...cotaPatrimFut];
+    const cotaPatrimMap = Object.fromEntries(cotaPatrimCompleta.map(x => [x.d, x.cota]));
+    const curvaSaidaMap = Object.fromEntries(curvaSaida.map(x => [x.d, x.valor]));
+    const mercadoMap = Object.fromEntries(historicoMercado.map(x => [x.d, x.c]));
+    
+    const allDates = new Set([...Object.keys(cotaPatrimMap), ...Object.keys(curvaSaidaMap), ...Object.keys(mercadoMap)]);
+    const sorted = [...allDates].sort();
+    
+    return sorted.map(d => ({
+      d,
+      ts: parseDate(d).getTime(),
+      cotaPatrim: cotaPatrimMap[d] !== undefined ? Number(cotaPatrimMap[d].toFixed(4)) : null,
+      curvaSaida: curvaSaidaMap[d] !== undefined ? Number(curvaSaidaMap[d].toFixed(4)) : null,
+      mercado: mercadoMap[d] !== undefined ? Number(mercadoMap[d].toFixed(4)) : null,
+      isFuture: d > meta.data_ref,
+    }));
+  }, [tickerSel, cdiSerie, cdiStatus, cdiAaAtual, usarManual, percCdiCurva, showFutureProjection, meta, historicoMercado, feriadosSet]);
+
+  const janelaResolvida = useMemo(() => {
+    if (dadosGrafico.length === 0) return { ini: '', fim: '' };
+    const todasDatas = dadosGrafico.map(x => x.d);
+    const minData = todasDatas[0];
+    const maxData = todasDatas[todasDatas.length - 1];
+    const hoje = meta.data_ref;
+    
+    const subDays = (iso, days) => {
+      const d = parseDate(iso);
+      d.setDate(d.getDate() - days);
+      return d.toISOString().split('T')[0];
+    };
+    
+    if (janelaPreset === 'TUDO')   return { ini: minData, fim: maxData };
+    if (janelaPreset === 'HOJE')   return { ini: minData, fim: hoje };
+    if (janelaPreset === 'FUT')    return { ini: hoje, fim: maxData };
+    if (janelaPreset === '1M')     return { ini: subDays(hoje, 30),  fim: hoje };
+    if (janelaPreset === '3M')     return { ini: subDays(hoje, 90),  fim: hoje };
+    if (janelaPreset === '6M')     return { ini: subDays(hoje, 180), fim: hoje };
+    if (janelaPreset === 'YTD')    return { ini: hoje.substring(0,4) + '-01-01', fim: hoje };
+    if (janelaPreset === '1Y')     return { ini: subDays(hoje, 365), fim: hoje };
+    if (janelaPreset === 'CUSTOM') return { ini: janelaIni || minData, fim: janelaFim || maxData };
+    return { ini: minData, fim: maxData };
+  }, [janelaPreset, janelaIni, janelaFim, dadosGrafico, meta]);
+
+  const dadosGraficoFiltrados = useMemo(() => {
+    if (!janelaResolvida.ini || !janelaResolvida.fim) return dadosGrafico;
+    return dadosGrafico.filter(x => x.d >= janelaResolvida.ini && x.d <= janelaResolvida.fim);
+  }, [dadosGrafico, janelaResolvida]);
+
+  const yieldSimulado = useMemo(() => {
+    const m = metaEfetiva[simTicker];
+    if (!m || simPreco <= 0) return null;
+    const duFalt = contarDU(m.data_ref, m.vencimento, feriadosSet);
+    if (duFalt <= 0) return null;
+    const cdiAaUsado = cdiAaAtual;
+    const cdiDiaProj = Math.pow(1 + cdiAaUsado/100, 1/252) - 1;
+    
+    const cotaVenc = m.cota_patrimonial_ref * Math.pow(1 + (m.yld_pct_cdi/100) * cdiDiaProj, duFalt);
+    
+    const custoEfetivo = simPreco * (1 + simCorretagem/100);
+    const fatorTotal = cotaVenc / custoEfetivo;
+    if (fatorTotal <= 0) return null;
+    
+    const yld_dia = Math.pow(fatorTotal, 1/duFalt) - 1;
+    const yld_aa = (Math.pow(1 + yld_dia, 252) - 1) * 100;
+    const yld_pct_cdi = (yld_dia / cdiDiaProj) * 100;
+    
+    const yld_pct_cdi_grossup = yld_pct_cdi / 0.85;
+    
+    const desconto_pct = ((simPreco - m.cota_patrimonial_ref) / m.cota_patrimonial_ref) * 100;
+    
+    const fatorTotalSemCorr = cotaVenc / simPreco;
+    const yld_dia_semCorr = Math.pow(fatorTotalSemCorr, 1/duFalt) - 1;
+    const yld_pct_cdi_semCorr = (yld_dia_semCorr / cdiDiaProj) * 100;
+    const impacto_corretagem_pp = yld_pct_cdi - yld_pct_cdi_semCorr;
+    
+    return {
+      yld_aa, yld_pct_cdi, yld_pct_cdi_grossup,
+      duFalt, desconto_pct, cotaVenc,
+      custoEfetivo, impacto_corretagem_pp,
+      cdiAaUsado,
+    };
+  }, [simTicker, simPreco, simCorretagem, cdiAaAtual, feriadosSet, metaEfetiva]);
+
+  const ultimoFechamentoMercado = historicoMercado[historicoMercado.length - 1];
+  
+  return (
+    <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif', maxWidth: 1240, margin: '0 auto', padding: '24px 20px', color: '#111827' }}>
+      <style>{`
+        .rfc-spin { animation: rfc-spin 1s linear infinite; }
+        @keyframes rfc-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+        .recharts-tooltip-wrapper { outline: none !important; }
+      `}</style>
+      
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #E5E7EB' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <img src={LOGO_DATA_URI} alt="Engage" style={{ height: 48, width: 'auto', flexShrink: 0 }} />
+          <div style={{ borderLeft: '1px solid #E5E7EB', paddingLeft: 16 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: '#111827' }}>
+              Itaú Isentos · Dashboard
+            </h1>
+            <p style={{ fontSize: 13, color: '#6B7280', margin: '4px 0 0' }}>
+              ISET11 · ISEN11 · ISTT11 · ISNT11 — fundos de infraestrutura isentos de IR
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <CDIStatusBadge status={cdiStatus} cdiAaAtual={cdiAaAtual} lastUpdate={Object.keys(cdiSerie).length > 0 ? `${Object.keys(cdiSerie).length} dias BCB` : null} />
+            <BrapiBadge status={brapiStatus} ultAtt={brapiUltAtt} />
+            <button onClick={() => setShowSettings(s => !s)}
+              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 999, border: '1px solid #D1D5DB', background: '#FFF', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, color: '#374151' }}>
+              <Activity size={11} />Config
+            </button>
+          </div>
+          <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+            {brapiStatus === 'success' && brapiUltAtt
+              ? `Mercado atualizado: ${new Date(brapiUltAtt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+              : 'Dados embutidos: 06/05/2026'}
+          </span>
+        </div>
+      </header>
+
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        {['ISET11','ISEN11','ISTT11','ISNT11'].map(t => (
+          <FundoCard
+            key={t}
+            ticker={t}
+            meta={metaEfetiva[t]}
+            volMed={volMedPorFundo[t]}
+            onSelect={setTickerSel}
+            isSelected={tickerSel === t}
+          />
+        ))}
+      </section>
+
+      <section style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12, padding: '20px 22px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0, color: FUNDO_CORES[tickerSel].dark }}>
+              {tickerSel} — Cota Patrimonial × Mercado × Curva CDI
+            </h2>
+            <p style={{ fontSize: 12, color: '#6B7280', margin: '4px 0 0' }}>
+              Reconstrução diária com calendário B3 (feriados bancários) e CDI realizado da série 12 do BCB.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
+              Saída % CDI:
+              <input type="number" step="1" min="50" max="120" value={percCdiCurva}
+                onChange={e => setPercCdiCurva(Number(e.target.value))}
+                style={{ width: 60, padding: '4px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 12 }} />
+            </label>
+            <label style={{ fontSize: 12, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="checkbox" checked={showFutureProjection} onChange={e => setShowFutureProjection(e.target.checked)} />
+              Projeção até vencimento
+            </label>
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14, padding: '10px 12px', background: '#F9FAFB', borderRadius: 8 }}>
+          <span style={{ fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.04em', marginRight: 4 }}>Janela:</span>
+          {[
+            { id: '1M', label: '1M' },
+            { id: '3M', label: '3M' },
+            { id: '6M', label: '6M' },
+            { id: 'YTD', label: 'YTD' },
+            { id: '1Y', label: '1A' },
+            { id: 'HOJE', label: 'Histórico' },
+            { id: 'FUT', label: 'Projeção' },
+            { id: 'TUDO', label: 'Tudo' },
+            { id: 'CUSTOM', label: 'Custom' },
+          ].map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => setJanelaPreset(opt.id)}
+              style={{
+                padding: '5px 11px',
+                fontSize: 12,
+                fontWeight: 500,
+                borderRadius: 6,
+                border: '1px solid ' + (janelaPreset === opt.id ? FUNDO_CORES[tickerSel].primary : '#D1D5DB'),
+                background: janelaPreset === opt.id ? FUNDO_CORES[tickerSel].primary : '#FFFFFF',
+                color: janelaPreset === opt.id ? '#FFFFFF' : '#374151',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >{opt.label}</button>
+          ))}
+          {janelaPreset === 'CUSTOM' && (
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 8 }}>
+              <input type="date" value={janelaIni} onChange={e => setJanelaIni(e.target.value)}
+                style={{ padding: '4px 6px', fontSize: 12, border: '1px solid #D1D5DB', borderRadius: 6 }} />
+              <span style={{ fontSize: 11, color: '#6B7280' }}>até</span>
+              <input type="date" value={janelaFim} onChange={e => setJanelaFim(e.target.value)}
+                style={{ padding: '4px 6px', fontSize: 12, border: '1px solid #D1D5DB', borderRadius: 6 }} />
+            </span>
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#9CA3AF' }}>
+            {janelaResolvida.ini && janelaResolvida.fim 
+              ? `${fmtDateBR(janelaResolvida.ini)} → ${fmtDateBR(janelaResolvida.fim)} · ${dadosGraficoFiltrados.length} pontos`
+              : ''}
+          </span>
+        </div>
+        
+        <div style={{ height: 380, marginTop: 8 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={dadosGraficoFiltrados} margin={{ top: 5, right: 20, bottom: 5, left: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              <XAxis 
+                dataKey="ts" 
+                type="number" 
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={(ts) => fmtMonthBR(new Date(ts).toISOString().split('T')[0])}
+                stroke="#6B7280" 
+                fontSize={11}
+                tickCount={8}
+              />
+              <YAxis 
+                stroke="#6B7280" 
+                fontSize={11}
+                domain={['auto', 'auto']}
+                tickFormatter={(v) => v.toFixed(2).replace('.', ',')}
+              />
+              <Tooltip 
+                contentStyle={{ borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 12 }}
+                labelFormatter={(ts) => fmtDateBR(new Date(ts).toISOString().split('T')[0])}
+                formatter={(value, name) => {
+                  if (value === null || value === undefined) return [null, null];
+                  return [fmtMoney(value), name];
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+              <ReferenceLine x={parseDate(meta.data_ref).getTime()} stroke="#9CA3AF" strokeDasharray="4 4" 
+                label={{ value: 'Hoje', position: 'top', fontSize: 10, fill: '#6B7280' }} />
+              <Line type="monotone" dataKey="cotaPatrim" stroke={FUNDO_CORES[tickerSel].primary} strokeWidth={2} dot={false} 
+                name="Cota Patrimonial" connectNulls />
+              <Line type="monotone" dataKey="curvaSaida" stroke="#D85A30" strokeWidth={2} strokeDasharray="6 3" dot={false} 
+                name={`Saída ${percCdiCurva}% CDI`} connectNulls />
+              <Line type="monotone" dataKey="mercado" stroke="#6B7280" strokeWidth={1.5} dot={false} 
+                name="Fechamento mercado" connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 16 }}>
+          <StatCard label="Cota patrimonial" value={fmtMoney(meta.cota_patrimonial_ref)} sub={fmtDateBR(meta.data_ref)} accent={FUNDO_CORES[tickerSel].dark} />
+          <StatCard label="Último mercado" value={fmtMoney(ultimoFechamentoMercado.c)} sub={fmtDateBR(ultimoFechamentoMercado.d)} />
+          <StatCard label="Desconto vs patrim." 
+            value={fmtPct(((ultimoFechamentoMercado.c / meta.cota_patrimonial_ref) - 1) * 100, 2)} 
+            sub={ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? 'mercado abaixo' : 'mercado acima'}
+            accent={ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? '#993C1D' : '#0F6E56'} />
+          <StatCard label="DU até vencimento" 
+            value={contarDU(meta.data_ref, meta.vencimento, feriadosSet).toString()} 
+            sub={fmtDateBR(meta.vencimento)} />
+        </div>
+      </section>
+
+      <section style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12, padding: '20px 22px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <Calculator size={18} style={{ color: '#374151' }} />
+          <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Simulador de Yield até Vencimento</h2>
+        </div>
+        <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 16px' }}>
+          Selecione um ativo e informe o preço de mercado para calcular o yield equivalente, considerando convergência da cota de mercado para a patrimonial até o vencimento.
+        </p>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '160px 180px 140px 1fr', gap: 12, alignItems: 'flex-end', marginBottom: 16 }}>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.04em' }}>Ativo</label>
+            <select value={simTicker} onChange={e => { setSimTicker(e.target.value); setSimPreco(metaEfetiva[e.target.value].cota_patrimonial_ref * 0.999); }}
+              style={{ width: '100%', padding: '8px 10px', marginTop: 4, border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, background: '#FFF' }}>
+              {['ISET11','ISEN11','ISTT11','ISNT11'].map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.04em' }}>Preço de mercado (R$)</label>
+            <input type="number" step="0.01" value={simPreco}
+              onChange={e => setSimPreco(Number(e.target.value))}
+              style={{ width: '100%', padding: '8px 10px', marginTop: 4, border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.04em' }}>Corretagem (%)</label>
+            <input type="number" step="0.01" min="0" max="5" value={simCorretagem}
+              onChange={e => setSimCorretagem(Number(e.target.value))}
+              style={{ width: '100%', padding: '8px 10px', marginTop: 4, border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13 }} />
+          </div>
+          <div style={{ fontSize: 11, color: '#6B7280', alignSelf: 'flex-end' }}>
+            CDI usado na simulação: {fmtPct(cdiAaAtual, 2)} a.a.<br/>
+            Cota patrimonial atual: {fmtMoney(metaEfetiva[simTicker].cota_patrimonial_ref)}<br/>
+            Vencimento: {fmtDateBR(metaEfetiva[simTicker].vencimento)}
+            {yieldSimulado && simCorretagem > 0 && (
+              <><br/>Custo efetivo c/ corretagem: <strong>{fmtMoney(yieldSimulado.custoEfetivo)}</strong></>
+            )}
+          </div>
+        </div>
+        
+        {yieldSimulado && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <StatCard 
+              label="Yield (% CDI)" 
+              value={fmtPct(yieldSimulado.yld_pct_cdi, 2)} 
+              sub={simCorretagem > 0 ? `impacto corretagem: ${yieldSimulado.impacto_corretagem_pp >= 0 ? '+' : ''}${yieldSimulado.impacto_corretagem_pp.toFixed(2).replace('.',',')} pp` : 'líquido de custos do fundo'}
+              accent={FUNDO_CORES[simTicker].dark} />
+            <StatCard 
+              label="Yield Gross-Up (% CDI)" 
+              value={fmtPct(yieldSimulado.yld_pct_cdi_grossup, 2)} 
+              sub="equivalente tributado a 15%"
+              accent={FUNDO_CORES[simTicker].dark} />
+            <StatCard 
+              label="Yield (% a.a.)" 
+              value={fmtPct(yieldSimulado.yld_aa, 2)} 
+              sub="taxa anualizada nominal" />
+            <StatCard 
+              label="Desconto vs patrim." 
+              value={fmtPct(yieldSimulado.desconto_pct, 2)} 
+              sub={`Cota venc.: ${fmtMoney(yieldSimulado.cotaVenc)} em ${yieldSimulado.duFalt} DU`}
+              accent={yieldSimulado.desconto_pct < 0 ? '#993C1D' : '#0F6E56'} />
+          </div>
+        )}
+        
+        <div style={{ marginTop: 14, padding: '10px 12px', background: '#F9FAFB', borderRadius: 8, fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>
+            Premissa: cota de mercado converge para a patrimonial em {fmtDateBR(metaEfetiva[simTicker].vencimento)}. A cota patrimonial no vencimento é estimada capitalizando a cota atual ({fmtMoney(metaEfetiva[simTicker].cota_patrimonial_ref)}) a {metaEfetiva[simTicker].yld_pct_cdi}% × CDI projetado durante os DU B3 restantes. Custo efetivo de entrada = preço × (1 + corretagem%); o yield é calculado sobre esse custo efetivo. Yield líquido da taxa de adm. do fundo, bruto de eventuais emolumentos B3. Gross-up considera alíquota de 15% (IR mínimo PF).
+          </span>
+        </div>
+      </section>
+
+      {showSettings && (
+      <section style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 12, padding: '20px 22px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Activity size={16} style={{ color: '#374151' }} />
+            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Configuração</h3>
+          </div>
+          <button onClick={() => setShowSettings(false)}
+            style={{ padding: '4px 10px', fontSize: 11, fontWeight: 500, borderRadius: 6, border: '1px solid #D1D5DB', background: '#FFF', cursor: 'pointer', color: '#6B7280' }}>
+            Fechar
+          </button>
+        </div>
+
+        <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: '1px solid #E5E7EB' }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: '#111827' }}>1. Preços de mercado B3 (Yahoo Finance)</h4>
+          <p style={{ fontSize: 11, color: '#6B7280', margin: '6px 0 0', lineHeight: 1.5 }}>
+            Os preços de mercado são buscados automaticamente do Yahoo Finance (ISET11.SA, ISEN11.SA, ISTT11.SA, ISNT11.SA) através de proxy CORS no carregamento da página. Sem cadastro, sem token. Range: último 1 ano de fechamentos diários.
+            <br/>Status: <strong style={{ color: '#374151' }}>{brapiStatus}</strong>
+            {brapiUltAtt && <> · última atualização: {new Date(brapiUltAtt).toLocaleString('pt-BR')}</>}
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+            <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: '#111827' }}>2. Atualização automática Itaú (Cota patrim. + PL + Duration)</h4>
+            {itauUltAtt && (
+              <span style={{ fontSize: 10, color: '#6B7280' }}>
+                última: {new Date(itauUltAtt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+          <p style={{ fontSize: 11, color: '#6B7280', margin: '0 0 10px', lineHeight: 1.5 }}>
+            Baixa os PDFs "Sensibilidade-{'{TICKER}'}.pdf" do Itaú via proxy CORS, parseia e atualiza automaticamente Cota Patrimonial, PL, Duration e Yield % CDI dos 4 fundos. O Itaú atualiza esses PDFs em D-1.
+          </p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={atualizarPdfsItau} disabled={itauUpdateStatus === 'loading'}
+              style={{
+                padding: '8px 16px', fontSize: 12, fontWeight: 600, borderRadius: 6,
+                border: 'none', cursor: itauUpdateStatus === 'loading' ? 'wait' : 'pointer',
+                background: itauUpdateStatus === 'loading' ? '#9CA3AF' : '#185FA5',
+                color: '#FFF', display: 'inline-flex', alignItems: 'center', gap: 6
+              }}>
+              {itauUpdateStatus === 'loading' && <RefreshCw size={12} className="rfc-spin" />}
+              {itauUpdateStatus !== 'loading' && <RefreshCw size={12} />}
+              {itauUpdateStatus === 'loading' ? 'Atualizando...' : 'Atualizar dados Itaú agora'}
+            </button>
+            {itauUpdateMsg && (
+              <span style={{
+                fontSize: 11,
+                color: itauUpdateStatus === 'success' ? '#0F6E56' :
+                       itauUpdateStatus === 'partial' ? '#854F0B' :
+                       itauUpdateStatus === 'error' ? '#9B1B1B' : '#6B7280',
+                fontWeight: 500
+              }}>{itauUpdateMsg}</span>
+            )}
+          </div>
+          <p style={{ fontSize: 10, color: '#9CA3AF', margin: '8px 0 0', lineHeight: 1.5 }}>
+            Tenta proxies em cascata: allorigins.win → corsproxy.io → codetabs.com. Se todos falharem, atualize manualmente na seção 3 abaixo.
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: '1px solid #E5E7EB' }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 6px', color: '#111827' }}>3. Cota Patrimonial (manual — fallback se auto-update falhar)</h4>
+          <p style={{ fontSize: 11, color: '#6B7280', margin: '0 0 10px', lineHeight: 1.5 }}>
+            Valores aqui aparecem automaticamente quando você usa a seção 2. Se o auto-update falhar, edite os valores manualmente — o cabeçalho dos PDFs "Sensibilidade-{'{TICKER}'}.pdf" mostra a cota patrimonial mais recente.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            {['ISET11','ISEN11','ISTT11','ISNT11'].map(t => {
+              const overrides = cotasPatrimOverride[t] || {};
+              const datas = Object.keys(overrides).sort();
+              const ultIso = datas[datas.length - 1];
+              const ultObj = ultIso ? overrides[ultIso] : null;
+              const baseFundo = DATA.fundos[t];
+              return (
+                <div key={t} style={{ padding: 10, background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: FUNDO_CORES[t].dark, marginBottom: 6 }}>{t}</div>
+                  <label style={{ fontSize: 10, color: '#6B7280', display: 'block' }}>Data referência</label>
+                  <input type="date"
+                    defaultValue={ultIso || baseFundo.data_ref}
+                    onBlur={e => {
+                      const newDate = e.target.value;
+                      const valor = ultObj ? ultObj.valor : baseFundo.cota_patrimonial_ref;
+                      if (newDate && newDate !== ultIso) {
+                        if (ultIso) saveCotaPatrimOverride(t, ultIso, null);
+                        saveCotaPatrimOverride(t, newDate, valor);
+                      }
+                    }}
+                    style={{ width: '100%', padding: '4px 6px', fontSize: 11, border: '1px solid #D1D5DB', borderRadius: 4, marginBottom: 6 }} />
+                  <label style={{ fontSize: 10, color: '#6B7280', display: 'block' }}>Cota patrim. (R$)</label>
+                  <input type="number" step="0.01"
+                    defaultValue={ultObj ? ultObj.valor : baseFundo.cota_patrimonial_ref}
+                    onBlur={e => {
+                      const novoValor = Number(e.target.value);
+                      const dataRef = ultIso || baseFundo.data_ref;
+                      if (novoValor > 0) saveCotaPatrimOverride(t, dataRef, novoValor);
+                    }}
+                    style={{ width: '100%', padding: '4px 6px', fontSize: 11, border: '1px solid #D1D5DB', borderRadius: 4 }} />
+                  {ultObj && (
+                    <div style={{ marginTop: 4, fontSize: 9, color: '#9CA3AF' }}>
+                      atualizado: {new Date(ultObj.atualizadoEm).toLocaleDateString('pt-BR')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 6px', color: '#111827' }}>4. CDI (avançado)</h4>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151', marginBottom: 8 }}>
+            <input type="checkbox" checked={usarManual} onChange={e => setUsarManual(e.target.checked)} />
+            Forçar CDI a.a. manual (ignorar série BCB)
+          </label>
+          {usarManual && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 400 }}>
+              <input type="range" min="8" max="20" step="0.05" value={cdiManual}
+                onChange={e => setCdiManual(Number(e.target.value))} style={{ flex: 1 }} />
+              <span style={{ fontSize: 13, fontWeight: 600, minWidth: 60 }}>{fmtPct(cdiManual, 2)}</span>
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 8, lineHeight: 1.6 }}>
+            Calendário B3: {DATA.feriados.length} feriados bancários (2025-2029).
+            CDI: {cdiStatus === 'success' ? `${Object.keys(cdiSerie).length} cotações diárias da série 12 do BCB` : 'modo manual ativo'}.
+          </div>
+        </div>
+      </section>
+      )}
+
+      <footer style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', paddingTop: 16, borderTop: '1px solid #E5E7EB', lineHeight: 1.6 }}>
+        Material informativo Engage, sem caráter de recomendação de investimento. Dados de domínio público (Itaú Asset Management, B3, Banco Central do Brasil).<br/>
+        Simulações são meramente indicativas e não representam promessa de rentabilidade. Fundos sujeitos a riscos de mercado e crédito.
+      </footer>
+    </div>
+  );
+}
+
+
+// Aguarda data.json e renderiza
+function renderApp() {
+  if (!window.__DATA__) return;
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(e(App));
+}
+if (window.__DATA_READY__) renderApp();
+else window.addEventListener('data-ready', renderApp);
+</script>
+</body>
+</html>

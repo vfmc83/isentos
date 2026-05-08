@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+.idea/
+node_modules/
+_app_body.jsx
