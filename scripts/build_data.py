@@ -232,10 +232,13 @@ def fetch_cdi() -> dict:
 def gerar_historico_patrim(cdi_serie):
     """Gera serie diaria de cota patrimonial por fundo usando ancoras + CDI BCB.
 
-    Logica:
-    - Passado (entre ancoras): interpola por janela usando fator geometrico
-      constante que reproduz exatamente a cota de cada ancora.
-    - Presente (apos ultima ancora ate hoje): aplica CDI BCB realizado * yld_pct.
+    Logica (metodo B - carrego CDI com cravamento):
+    - Entre duas ancoras: aplica CDI BCB realizado * yld dia a dia (formato suave
+      seguindo o carrego), depois aplica um fator de ajuste distribuido
+      geometricamente para CRAVAR exatamente na cota oficial da ancora seguinte.
+      Isso elimina degraus artificiais e mantem fidelidade as cotas oficiais.
+    - Presente (apos ultima ancora ate hoje): aplica CDI BCB realizado * yld.
+      Se o CDI do dia ainda nao foi publicado, usa o ultimo CDI disponivel.
     - Futuro NAO e gerado aqui (o frontend projeta).
     """
     anchors_path = Path(__file__).resolve().parent / "anchors.json"
@@ -264,6 +267,14 @@ def gerar_historico_patrim(cdi_serie):
             d = d + timedelta(days=1)
         return out
 
+    # Ultimo CDI diario disponivel (para projetar dias sem CDI publicado)
+    cdi_ordenado = sorted(cdi_serie.items())
+    ultimo_cdi = cdi_ordenado[-1][1] if cdi_ordenado else 0.0
+
+    def cdi_do_dia(iso):
+        v = cdi_serie.get(iso)
+        return v if v is not None else ultimo_cdi
+
     hoje = datetime.now(timezone.utc).date()
     result = {}
 
@@ -275,7 +286,6 @@ def gerar_historico_patrim(cdi_serie):
             continue
 
         serie = []
-        # Interpolacao por janela entre ancoras consecutivas
         for i in range(len(ancoras) - 1):
             d_ini = parse_d(ancoras[i]["data"])
             d_fim = parse_d(ancoras[i + 1]["data"])
@@ -285,18 +295,23 @@ def gerar_historico_patrim(cdi_serie):
             n = len(dus) - 1
             if n <= 0:
                 continue
-            fator = (c_fim / c_ini) ** (1.0 / n)
+
+            provis = [c_ini]
             cur = c_ini
-            for j, iso in enumerate(dus):
-                if j == 0:
+            for j in range(1, len(dus)):
+                cur = cur * (1.0 + cdi_do_dia(dus[j]) * yld)
+                provis.append(cur)
+
+            alvo = c_fim / provis[-1] if provis[-1] != 0 else 1.0
+            for k, iso in enumerate(dus):
+                if k == 0:
                     if not serie or serie[-1]["d"] != iso:
                         serie.append({"d": iso, "cota": round(c_ini, 2)})
                 else:
-                    cur = cur * fator
-                    serie.append({"d": iso, "cota": round(cur, 2)})
+                    ajustada = provis[k] * (alvo ** (k / n))
+                    serie.append({"d": iso, "cota": round(ajustada, 2)})
             serie[-1]["cota"] = round(c_fim, 2)
 
-        # Estende da ultima ancora ate hoje usando CDI BCB realizado * yld
         ultima_data = parse_d(ancoras[-1]["data"])
         ultima_cota = float(ancoras[-1]["cota"])
         if ultima_data < hoje:
@@ -305,10 +320,7 @@ def gerar_historico_patrim(cdi_serie):
             for j, iso in enumerate(dus_futuro):
                 if j == 0:
                     continue
-                cdi_dia = cdi_serie.get(iso)
-                if cdi_dia is None:
-                    continue
-                cur = cur * (1.0 + cdi_dia * yld)
+                cur = cur * (1.0 + cdi_do_dia(iso) * yld)
                 serie.append({"d": iso, "cota": round(cur, 2)})
 
         result[ticker] = serie
