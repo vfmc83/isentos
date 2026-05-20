@@ -2,13 +2,13 @@
 Engage Isentos — build_data.py
 
 Baixa diariamente:
-  - Cotações da B3 dos 4 tickers via Yahoo Finance (1 ano de histórico)
-  - PDFs Sensibilidade-{TICKER}.pdf do Itaú (Cota Patrimonial, PL, Duration, Yield)
-  - Série CDI diário do BCB (série 12)
-  - Calendário de feriados B3
+- Cotações da B3 dos 4 tickers via Yahoo Finance (1 ano de histórico)
+- PDFs Sensibilidade-{TICKER}.pdf do Itaú (Cota Patrimonial, PL, Duration, Yield)
+- Série CDI diário do BCB (série 12)
+- Calendário de feriados B3
 
 Gera:
-  - data.json na raiz do repositório, lido pelo dashboard React no client
+- data.json na raiz do repositório, lido pelo dashboard React no client
 """
 
 import json
@@ -139,35 +139,36 @@ def parse_sensibilidade_pdf(pdf_bytes: bytes) -> dict:
     }
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         texto = "\n".join((page.extract_text() or "") for page in pdf.pages)
-    
+
     m = re.search(r"Data de refer[êe]ncia:\s*(\d{2})/(\d{2})/(\d{4})", texto, re.I)
     if m:
         out["data_ref"] = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
-    
+
     m = re.search(r"Valor Cota Patrimonial\s*([\d.,]+)", texto, re.I)
     if m:
         out["cota_patrimonial_ref"] = float(m.group(1).replace(".", "").replace(",", "."))
-    
+
     m = re.search(r"Patrim[ôo]nio L[íi]quido\s*R\$\s*([\d.,]+)", texto, re.I)
     if m:
         out["pl"] = float(m.group(1).replace(".", "").replace(",", "."))
-    
+
     m = re.search(r"Duration da carteira\s*([\d.,]+)", texto, re.I)
     if m:
         out["duration"] = float(m.group(1).replace(",", "."))
-    
+
+    # Yield Cota patrimonial: armazenado como percentual (95, 96...), nao decimal
     m = re.search(r"Yield Cota patrimonial[^\d]*([\d.,]+)\s*%", texto, re.I)
     if m:
         out["yld_pct_cdi"] = float(m.group(1).replace(",", "."))
-    
+
     m = re.search(r"Quantidade total de cotas\s*([\d.,]+)", texto, re.I)
     if m:
         out["qtd_cotas"] = float(m.group(1).replace(".", "").replace(",", "."))
-    
+
     m = re.search(r"Posi[çc][ãa]o em Caixa\s*([\d.,]+)\s*%", texto, re.I)
     if m:
         out["caixa_pct"] = float(m.group(1).replace(",", "."))
-    
+
     return out
 
 
@@ -184,7 +185,7 @@ def fetch_yahoo_historico(ticker: str) -> list:
     quote = ((r0.get("indicators") or {}).get("quote") or [{}])[0]
     closes = quote.get("close") or []
     volumes = quote.get("volume") or []
-    
+
     serie = []
     for i, ts in enumerate(timestamps):
         if i >= len(closes) or closes[i] is None:
@@ -198,7 +199,7 @@ def fetch_yahoo_historico(ticker: str) -> list:
             "n": 0,
         })
     serie.sort(key=lambda x: x["d"])
-    
+
     # Adiciona "hoje" se ainda não estiver
     meta = r0.get("meta") or {}
     rmp = meta.get("regularMarketPrice")
@@ -228,13 +229,100 @@ def fetch_cdi() -> dict:
     return out
 
 
+def gerar_historico_patrim(cdi_serie):
+    """Gera serie diaria de cota patrimonial por fundo usando ancoras + CDI BCB.
+
+    Logica:
+    - Passado (entre ancoras): interpola por janela usando fator geometrico
+      constante que reproduz exatamente a cota de cada ancora.
+    - Presente (apos ultima ancora ate hoje): aplica CDI BCB realizado * yld_pct.
+    - Futuro NAO e gerado aqui (o frontend projeta).
+    """
+    anchors_path = Path(__file__).resolve().parent / "anchors.json"
+    if not anchors_path.exists():
+        print(f"  ANCHORS nao encontrado: {anchors_path}", flush=True)
+        return {}
+    with open(anchors_path, "r", encoding="utf-8") as f:
+        anchors_data = json.load(f)
+
+    feriados_set = set(FERIADOS_B3)
+
+    def parse_d(iso):
+        return datetime.strptime(iso, "%Y-%m-%d").date()
+
+    def is_du(d):
+        if d.weekday() >= 5:
+            return False
+        return d.isoformat() not in feriados_set
+
+    def listar_du(d_ini, d_fim):
+        out = []
+        d = d_ini
+        while d <= d_fim:
+            if is_du(d):
+                out.append(d.isoformat())
+            d = d + timedelta(days=1)
+        return out
+
+    hoje = datetime.now(timezone.utc).date()
+    result = {}
+
+    for ticker, info in anchors_data.items():
+        ancoras = info.get("ancoras", [])
+        yld = float(info.get("yld_pct_cdi", 0)) / 100.0
+        if not ancoras:
+            result[ticker] = []
+            continue
+
+        serie = []
+        # Interpolacao por janela entre ancoras consecutivas
+        for i in range(len(ancoras) - 1):
+            d_ini = parse_d(ancoras[i]["data"])
+            d_fim = parse_d(ancoras[i + 1]["data"])
+            c_ini = float(ancoras[i]["cota"])
+            c_fim = float(ancoras[i + 1]["cota"])
+            dus = listar_du(d_ini, d_fim)
+            n = len(dus) - 1
+            if n <= 0:
+                continue
+            fator = (c_fim / c_ini) ** (1.0 / n)
+            cur = c_ini
+            for j, iso in enumerate(dus):
+                if j == 0:
+                    if not serie or serie[-1]["d"] != iso:
+                        serie.append({"d": iso, "cota": round(c_ini, 2)})
+                else:
+                    cur = cur * fator
+                    serie.append({"d": iso, "cota": round(cur, 2)})
+            serie[-1]["cota"] = round(c_fim, 2)
+
+        # Estende da ultima ancora ate hoje usando CDI BCB realizado * yld
+        ultima_data = parse_d(ancoras[-1]["data"])
+        ultima_cota = float(ancoras[-1]["cota"])
+        if ultima_data < hoje:
+            dus_futuro = listar_du(ultima_data, hoje)
+            cur = ultima_cota
+            for j, iso in enumerate(dus_futuro):
+                if j == 0:
+                    continue
+                cdi_dia = cdi_serie.get(iso)
+                if cdi_dia is None:
+                    continue
+                cur = cur * (1.0 + cdi_dia * yld)
+                serie.append({"d": iso, "cota": round(cur, 2)})
+
+        result[ticker] = serie
+
+    return result
+
+
 def main():
     print(f"[{datetime.now()}] Iniciando build_data.py", flush=True)
-    
+
     fundos = {}
     for t, base in FUNDOS_BASE.items():
         fundos[t] = dict(base)
-    
+
     # 1) PDFs Itaú
     print("\n=== Baixando PDFs Itaú ===", flush=True)
     for t, url in ITAU_PDF_URLS.items():
@@ -248,7 +336,7 @@ def main():
                     fundos[t][k] = v
         except Exception as e:
             print(f"    FALHA: {e}", flush=True)
-    
+
     # 2) Yahoo
     print("\n=== Baixando histórico Yahoo Finance ===", flush=True)
     historico = {}
@@ -260,7 +348,7 @@ def main():
         except Exception as e:
             print(f"    FALHA: {e}", flush=True)
             historico[t] = []
-    
+
     # 3) CDI BCB
     print("\n=== Baixando CDI diário BCB (série 12) ===", flush=True)
     try:
@@ -269,18 +357,29 @@ def main():
     except Exception as e:
         print(f"  FALHA: {e}", flush=True)
         cdi = {}
-    
-    # 4) Monta JSON final
+
+    # 4) Cota patrimonial calibrada (interpolacao por ancoras + projecao CDI)
+    print("\n=== Gerando historico_patrim ===", flush=True)
+    try:
+        historico_patrim = gerar_historico_patrim(cdi)
+        total = sum(len(v) for v in historico_patrim.values())
+        print(f"  OK: {total} pontos em {len(historico_patrim)} fundos", flush=True)
+    except Exception as e:
+        print(f"  FALHA: {e}", flush=True)
+        historico_patrim = {}
+
+    # 5) Monta JSON final
     out = {
         "fundos": fundos,
         "historico": historico,
         "cdi_serie": cdi,
         "feriados": FERIADOS_B3,
         "data_geracao": datetime.now(timezone.utc).isoformat(),
+        "historico_patrim": historico_patrim,
     }
-    
+
     OUT_PATH.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    
+
     tamanho_kb = OUT_PATH.stat().st_size / 1024
     print(f"\n=== OK gerado: {OUT_PATH} ({tamanho_kb:.1f} KB) ===", flush=True)
 
