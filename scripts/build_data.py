@@ -158,7 +158,7 @@ def parse_sensibilidade_pdf(pdf_bytes: bytes) -> dict:
     
     m = re.search(r"Yield Cota patrimonial[^\d]*([\d.,]+)\s*%", texto, re.I)
     if m:
-        out["yld_pct_cdi"] = float(m.group(1).replace(",", ".")) / 100.0
+        out["yld_pct_cdi"] = float(m.group(1).replace(",", "."))
     
     m = re.search(r"Quantidade total de cotas\s*([\d.,]+)", texto, re.I)
     if m:
