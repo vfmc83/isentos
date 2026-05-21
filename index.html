@@ -374,6 +374,13 @@ function App({ data }) {
 
   const [simTicker, setSimTicker] = useState('ISET11');
   const [simPreco, setSimPreco] = useState(112.40);
+    const [s2Ticker, setS2Ticker] = useState('ISEN11');
+  const [s2DataCompra, setS2DataCompra] = useState('');
+  const [s2PrecoCompra, setS2PrecoCompra] = useState('');
+  const [s2CorrCompra, setS2CorrCompra] = useState(0);
+  const [s2DataVenda, setS2DataVenda] = useState('');
+  const [s2PrecoVenda, setS2PrecoVenda] = useState('');
+  const [s2CorrVenda, setS2CorrVenda] = useState(0);
   const [simCorretagem, setSimCorretagem] = useState(0.5);
 
   const [janelaPreset, setJanelaPreset] = useState('TUDO');
@@ -641,9 +648,7 @@ function App({ data }) {
       const hp = DATA.historico_patrim && DATA.historico_patrim[t];
       if (hp && hp.length) {
         const last = hp[hp.length - 1];
-        out[t] = Object.assign({}, out[t], { cota_patrimonial_ref: last.cota, data_ref: last.d });
-      }
-    }
+        out[t] = Object.assign({}, out[t], { cota_patrimonial_ref: last.cota, data_ref:
     return out;
   }, [cotasPatrimOverride]);
   
@@ -773,6 +778,48 @@ function App({ data }) {
       cdiAaUsado,
     };
   }, [simTicker, simPreco, simCorretagem, cdiAaAtual, feriadosSet, metaEfetiva]);
+  const simTrade = useMemo(() => {
+    const pc = parseFloat(s2PrecoCompra);
+    const pv = parseFloat(s2PrecoVenda);
+    const cc = parseFloat(s2CorrCompra) || 0;
+    const cv = parseFloat(s2CorrVenda) || 0;
+    if (!s2DataCompra || !s2DataVenda || !(pc > 0) || !(pv > 0)) return null;
+    if (s2DataVenda <= s2DataCompra) return { erro: 'Data de venda deve ser posterior a de compra.' };
+
+    const custo = pc * (1 + cc / 100);
+    const liquido = pv * (1 - cv / 100);
+    const rentNominal = liquido / custo - 1;
+
+    const dus = listarDU(s2DataCompra, s2DataVenda, feriadosSet);
+    const du = Math.max(dus.length - 1, 1);
+    const rentAa = Math.pow(1 + rentNominal, 252 / du) - 1;
+
+    // CDI realizado acumulado no periodo (produto dos fatores diarios)
+    let cdiAcum = 1;
+    let cdiCount = 0;
+    for (let i = 1; i < dus.length; i++) {
+      const c = cdiSerie[dus[i]];
+      if (c != null) { cdiAcum *= (1 + c); cdiCount++; }
+    }
+    cdiAcum = cdiAcum - 1;
+    const pctCdi = cdiAcum > 0 ? (rentNominal / cdiAcum) * 100 : null;
+
+    // Aliquota regressiva por dias corridos
+    const diasCorr = Math.round((parseDate(s2DataVenda) - parseDate(s2DataCompra)) / 86400000);
+    let aliq;
+    if (diasCorr <= 180) aliq = 0.225;
+    else if (diasCorr <= 360) aliq = 0.20;
+    else if (diasCorr <= 720) aliq = 0.175;
+    else aliq = 0.15;
+    const grossUp = rentNominal / (1 - aliq);
+    const pctCdiGross = cdiAcum > 0 ? (grossUp / cdiAcum) * 100 : null;
+
+    return {
+      custo, liquido, rentNominal, rentAa, du, diasCorr,
+      cdiAcum, cdiCount, pctCdi, aliq, grossUp, pctCdiGross,
+    };
+  }, [s2PrecoCompra, s2PrecoVenda, s2CorrCompra, s2CorrVenda, s2DataCompra, s2DataVenda, cdiSerie, feriadosSet]);
+
 
   const ultimoFechamentoMercado = historicoMercado[historicoMercado.length - 1];
   
@@ -1149,6 +1196,83 @@ function App({ data }) {
         </div>
       </section>
       )}
+      <section style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '20px 22px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <Calculator size={18} style={{ color: '#374151' }} />
+          <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Simulador de Trade (compra e venda)</h2>
+        </div>
+        <p style={{ fontSize: 12, color: '#6B7280', marginTop: -8, marginBottom: 16 }}>
+          Informe compra e venda para calcular a rentabilidade no per&iacute;odo: nominal, anualizada, em % do CDI realizado e com gross-up (al&iacute;quota regressiva).
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>ATIVO</label>
+            <select value={s2Ticker} onChange={e => setS2Ticker(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }}>
+              {['ISET11','ISEN11','ISTT11','ISNT11'].map(t => e('option', { key: t, value: t }, t))}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>DATA COMPRA</label>
+            <input type="date" value={s2DataCompra} onChange={e => setS2DataCompra(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>PRE&Ccedil;O COMPRA (R$)</label>
+            <input type="number" step="0.01" value={s2PrecoCompra} onChange={e => setS2PrecoCompra(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>CORRETAGEM COMPRA (%)</label>
+            <input type="number" step="0.01" value={s2CorrCompra} onChange={e => setS2CorrCompra(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>DATA VENDA</label>
+            <input type="date" value={s2DataVenda} onChange={e => setS2DataVenda(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>PRE&Ccedil;O VENDA (R$)</label>
+            <input type="number" step="0.01" value={s2PrecoVenda} onChange={e => setS2PrecoVenda(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>CORRETAGEM VENDA (%)</label>
+            <input type="number" step="0.01" value={s2CorrVenda} onChange={e => setS2CorrVenda(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+          </div>
+        </div>
+        {simTrade && simTrade.erro && (
+          <div style={{ color: '#DC2626', fontSize: 13 }}>{simTrade.erro}</div>
+        )}
+        {simTrade && !simTrade.erro && (
+          <div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
+              Custo efetivo de compra: <strong>{fmtMoney(simTrade.custo)}</strong> &middot; L&iacute;quido de venda: <strong>{fmtMoney(simTrade.liquido)}</strong> &middot; {simTrade.du} DU &middot; {simTrade.diasCorr} dias corridos
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>RENT. NOMINAL</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: simTrade.rentNominal >= 0 ? '#059669' : '#DC2626' }}>{fmtPct(simTrade.rentNominal * 100, 2)}</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>no per&iacute;odo</div>
+              </div>
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>RENT. ANUALIZADA</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>{fmtPct(simTrade.rentAa * 100, 2)}</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>a.a. (252 DU)</div>
+              </div>
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>% DO CDI</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#374151' }}>{simTrade.pctCdi != null ? fmtPct(simTrade.pctCdi, 1) : 'n/d'}</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>CDI realizado no per&iacute;odo</div>
+              </div>
+              <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>GROSS-UP (% CDI)</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: '#374151' }}>{simTrade.pctCdiGross != null ? fmtPct(simTrade.pctCdiGross, 1) : 'n/d'}</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>equiv. tributado a {fmtPct(simTrade.aliq * 100, 1)}</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 12, lineHeight: 1.6 }}>
+              Custo = pre&ccedil;o&times;(1+corr%); l&iacute;quido = pre&ccedil;o&times;(1&minus;corr%). % do CDI compara a rentabilidade ao CDI realizado (BCB s&eacute;rie 12) acumulado nos dias &uacute;teis entre compra e venda. Gross-up usa al&iacute;quota regressiva (&le;180d 22,5%; &le;360d 20%; &le;720d 17,5%; &gt;720d 15%): equivalente_bruto = rent&divide;(1&minus;al&iacute;quota).
+            </div>
+          </div>
+        )}
+      </section>
+
 
       <footer style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', paddingTop: 16, borderTop: '1px solid #E5E7EB', lineHeight: 1.6 }}>
         Material informativo Engage, sem caráter de recomendação de investimento. Dados de domínio público (Itaú Asset Management, B3, Banco Central do Brasil).<br/>
