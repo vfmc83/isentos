@@ -648,7 +648,7 @@ function App({ data }) {
       const hp = DATA.historico_patrim && DATA.historico_patrim[t];
       if (hp && hp.length) {
         const last = hp[hp.length - 1];
-        out[t] = Object.assign({}, out[t], { cota_patrimonial_ref: last.cota, data_ref:
+        out[t] = Object.assign({}, out[t], { cota_patrimonial_ref: last.cota, data_ref: last.d });
     return out;
   }, [cotasPatrimOverride]);
   
