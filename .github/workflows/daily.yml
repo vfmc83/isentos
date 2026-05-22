@@ -3,9 +3,9 @@ name: Daily data update
 on:
   schedule:
     # 21:00 UTC = 18:00 BRT (PDFs Itaú já foram publicados às ~9h)
-    - cron: '0 21 * * 1-5'
+    - cron: '7 21 * * 1-5'
     # 12:00 UTC = 09:00 BRT (apos PDFs Itau, atualiza cota de hoje cedo)
-    - cron: '0 12 * * 1-5'
+    - cron: '7 12 * * 1-5'
   # Permite rodar manualmente pela aba Actions do GitHub
   workflow_dispatch:
   # Roda automaticamente também quando você faz push (útil para o primeiro deploy)
@@ -13,7 +13,7 @@ on:
     branches: [ main ]
     paths:
       - 'scripts/build_data.py'
-      - '.github/workflows/daily.yml'
+      - '.github/workflows/daily.yml7f
 
 jobs:
   build:
