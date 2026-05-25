@@ -39,8 +39,10 @@ ITAU_PDF_URLS = {
     for t in TICKERS
 }
 
+# Dois hosts espelhados do Yahoo. Se query1 falhar/zerar, tenta query2.
+YAHOO_HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
 YAHOO_URL_TPL = (
-    "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}.SA"
+    "https://{host}/v8/finance/chart/{symbol}.SA"
     "?range=1y&interval=1d"
 )
 
@@ -173,14 +175,32 @@ def parse_sensibilidade_pdf(pdf_bytes: bytes) -> dict:
 
 
 def fetch_yahoo_historico(ticker: str) -> list:
-    """Histórico OHLCV de 1 ano via Yahoo Finance."""
-    url = YAHOO_URL_TPL.format(symbol=ticker)
-    raw = http_get(url, accept="application/json")
-    data = json.loads(raw)
-    result = (data.get("chart") or {}).get("result")
-    if not result or not isinstance(result, list):
-        raise RuntimeError(f"Yahoo: sem 'chart.result' para {ticker}")
-    r0 = result[0]
+    """Histórico OHLCV de 1 ano via Yahoo Finance.
+
+    Tenta query1 e, se falhar ou retornar série vazia, faz fallback para query2
+    antes de desistir. Reduz o status 'partial' quando um host está com rate-limit.
+    """
+    ultimo_erro = None
+    for host in YAHOO_HOSTS:
+        url = YAHOO_URL_TPL.format(host=host, symbol=ticker)
+        try:
+            raw = http_get(url, accept="application/json")
+            data = json.loads(raw)
+            result = (data.get("chart") or {}).get("result")
+            if not result or not isinstance(result, list):
+                raise RuntimeError(f"Yahoo[{host}]: sem 'chart.result' para {ticker}")
+            serie = _parse_yahoo_result(result[0])
+            if serie:
+                return serie
+            ultimo_erro = RuntimeError(f"Yahoo[{host}]: série vazia para {ticker}")
+        except Exception as e:
+            ultimo_erro = e
+            print(f"    aviso {host}: {e}", flush=True)
+    raise RuntimeError(f"Yahoo falhou em todos os hosts para {ticker}: {ultimo_erro}")
+
+
+def _parse_yahoo_result(r0: dict) -> list:
+    """Converte o bloco chart.result[0] do Yahoo numa série [{d,c,v,q,n}]."""
     timestamps = r0.get("timestamp") or []
     quote = ((r0.get("indicators") or {}).get("quote") or [{}])[0]
     closes = quote.get("close") or []
@@ -286,6 +306,7 @@ def gerar_historico_patrim(cdi_serie):
             continue
 
         serie = []
+        # Interpolacao por janela entre ancoras consecutivas (carrego CDI + cravamento)
         for i in range(len(ancoras) - 1):
             d_ini = parse_d(ancoras[i]["data"])
             d_fim = parse_d(ancoras[i + 1]["data"])
@@ -296,12 +317,15 @@ def gerar_historico_patrim(cdi_serie):
             if n <= 0:
                 continue
 
+            # Passo 1: cota provisoria por CDI realizado * yld
             provis = [c_ini]
             cur = c_ini
             for j in range(1, len(dus)):
                 cur = cur * (1.0 + cdi_do_dia(dus[j]) * yld)
                 provis.append(cur)
 
+            # Passo 2: fator de cravamento distribuido geometricamente
+            #   cota_final = provis[k] * (c_fim/provis[-1]) ** (k/n)
             alvo = c_fim / provis[-1] if provis[-1] != 0 else 1.0
             for k, iso in enumerate(dus):
                 if k == 0:
@@ -312,6 +336,7 @@ def gerar_historico_patrim(cdi_serie):
                     serie.append({"d": iso, "cota": round(ajustada, 2)})
             serie[-1]["cota"] = round(c_fim, 2)
 
+        # Estende da ultima ancora ate hoje usando CDI BCB realizado * yld
         ultima_data = parse_d(ancoras[-1]["data"])
         ultima_cota = float(ancoras[-1]["cota"])
         if ultima_data < hoje:
@@ -349,20 +374,59 @@ def main():
         except Exception as e:
             print(f"    FALHA: {e}", flush=True)
 
+    # data.json anterior (fallback de último mercado se o Yahoo falhar hoje)
+    prev = {}
+    if OUT_PATH.exists():
+        try:
+            prev = json.loads(OUT_PATH.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"  aviso: não foi possível ler data.json anterior: {e}", flush=True)
+
     # 2) Yahoo
     print("\n=== Baixando histórico Yahoo Finance ===", flush=True)
     historico = {}
+    ok_yahoo = 0
     for t in TICKERS:
         try:
             print(f"  {t}.SA...", flush=True)
             historico[t] = fetch_yahoo_historico(t)
             print(f"    OK: {len(historico[t])} pregões", flush=True)
+            if historico[t]:
+                ok_yahoo += 1
         except Exception as e:
             print(f"    FALHA: {e}", flush=True)
             historico[t] = []
 
+    # 2.3) Se TODOS os tickers zerarem, aborta sem sobrescrever um data.json bom.
+    if ok_yahoo == 0:
+        prev_hist = prev.get("historico") or {}
+        tinha_antes = any(prev_hist.get(t) for t in TICKERS)
+        if tinha_antes:
+            print(
+                "  ERRO: Yahoo retornou vazio para os 4 tickers. "
+                "Mantendo data.json anterior (nao sobrescreve dado bom).",
+                file=sys.stderr, flush=True,
+            )
+            sys.exit(1)
+        print("  aviso: Yahoo vazio e nao ha data.json anterior; segue mesmo assim.", flush=True)
+
+    # 2.2) Ultimo preco de mercado por fundo (fallback p/ o card quando a serie falha).
+    #   Usa o ultimo ponto da serie de hoje; se hoje falhou, herda do data.json anterior.
+    prev_fundos = prev.get("fundos") or {}
+    for t in TICKERS:
+        serie = historico.get(t) or []
+        if serie:
+            fundos[t]["ultimo_mercado"] = serie[-1]["c"]
+            fundos[t]["data_mercado"] = serie[-1]["d"]
+        else:
+            pf = prev_fundos.get(t) or {}
+            if pf.get("ultimo_mercado") is not None:
+                fundos[t]["ultimo_mercado"] = pf["ultimo_mercado"]
+                fundos[t]["data_mercado"] = pf.get("data_mercado")
+                print(f"    {t}: mercado herdado do anterior ({pf.get('data_mercado')})", flush=True)
+
     # 3) CDI BCB
-    print("\n=== Baixando CDI diário BCB (série 12) ===", flush=True)
+    print("\n=== Baixando CDI diario BCB (serie 12) ===", flush=True)
     try:
         cdi = fetch_cdi()
         print(f"  OK: {len(cdi)} dias", flush=True)
