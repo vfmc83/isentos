@@ -823,7 +823,11 @@ function App({ data }) {
   }, [s2PrecoCompra, s2PrecoVenda, s2CorrCompra, s2CorrVenda, s2DataCompra, s2DataVenda, cdiSerie, feriadosSet]);
 
 
-  const ultimoFechamentoMercado = historicoMercado[historicoMercado.length - 1];
+  const ultimoFechamentoMercado = (historicoMercado && historicoMercado.length)
+    ? historicoMercado[historicoMercado.length - 1]
+    : (meta && meta.ultimo_mercado != null
+        ? { c: meta.ultimo_mercado, d: meta.data_mercado }
+        : null);
   
   return (
     <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif', maxWidth: 1240, margin: '0 auto', padding: '24px 20px', color: '#111827' }}>
@@ -986,11 +990,11 @@ function App({ data }) {
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 16 }}>
           <StatCard label="Cota patrimonial" value={fmtMoney(meta.cota_patrimonial_ref)} sub={fmtDateBR(meta.data_ref)} accent={FUNDO_CORES[tickerSel].dark} />
-          <StatCard label="Último mercado" value={fmtMoney(ultimoFechamentoMercado.c)} sub={fmtDateBR(ultimoFechamentoMercado.d)} />
-          <StatCard label="Desconto vs patrim." 
-            value={fmtPct(((ultimoFechamentoMercado.c / meta.cota_patrimonial_ref) - 1) * 100, 2)} 
-            sub={ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? 'mercado abaixo' : 'mercado acima'}
-            accent={ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? '#993C1D' : '#0F6E56'} />
+          <StatCard label="Último mercado" value={ultimoFechamentoMercado ? fmtMoney(ultimoFechamentoMercado.c) : '—'} sub={ultimoFechamentoMercado ? fmtDateBR(ultimoFechamentoMercado.d) : 'sem dado'} />
+          <StatCard label="Desconto vs patrim."
+            value={ultimoFechamentoMercado ? fmtPct(((ultimoFechamentoMercado.c / meta.cota_patrimonial_ref) - 1) * 100, 2) : '—'}
+            sub={!ultimoFechamentoMercado ? 'sem dado' : (ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? 'mercado abaixo' : 'mercado acima')}
+            accent={!ultimoFechamentoMercado ? '#6B7280' : (ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? '#993C1D' : '#0F6E56')} />
           <StatCard label="DU até vencimento" 
             value={contarDU(meta.data_ref, meta.vencimento, feriadosSet).toString()} 
             sub={fmtDateBR(meta.vencimento)} />
