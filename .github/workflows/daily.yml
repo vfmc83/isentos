@@ -8,12 +8,15 @@ on:
     - cron: '7 12 * * 1-5'
   # Permite rodar manualmente pela aba Actions do GitHub
   workflow_dispatch:
+  # Permite disparo externo confiável (ex.: cron-job.org) via API repository_dispatch
+  repository_dispatch:
+    types: [run-daily]
   # Roda automaticamente também quando você faz push (útil para o primeiro deploy)
   push:
     branches: [ main ]
     paths:
       - 'scripts/build_data.py'
-      - '.github/workflows/daily.yml7f
+      - '.github/workflows/daily.yml'
 
 jobs:
   build:
