@@ -651,8 +651,39 @@ function App({ data }) {
         out[t] = Object.assign({}, out[t], { cota_patrimonial_ref: last.cota, data_ref: last.d });
       }
     }
+    // Projetar cota patrim ate HOJE (clock do navegador) via CDI a.a. atual.
+    // Garante que mesmo com build atrasado o card/simulador/FundoCards mostrem cota corrente.
+    const hojeISO = (() => {
+      const d = new Date();
+      const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    })();
+    for (const t of Object.keys(out)) {
+      const m0 = out[t];
+      if (!m0 || !m0.data_ref || m0.data_ref >= hojeISO) continue;
+      try {
+        const fut = projetarCotaFutura({
+          cotaAtual: m0.cota_patrimonial_ref,
+          dtRef: m0.data_ref,
+          dtFinal: hojeISO,
+          yldPctCdi: m0.yld_pct_cdi,
+          cdiAaProj: cdiAaAtual,
+          feriadosSet,
+        });
+        if (fut && fut.length) {
+          const lastP = fut[fut.length - 1];
+          out[t] = Object.assign({}, m0, {
+            cota_patrimonial_ref: lastP.cota,
+            data_ref: lastP.d,
+            _projAteHoje: true,
+            _projDeData: m0.data_ref,
+            _projDuDias: fut.length,
+          });
+        }
+      } catch(e) { /* mantem m0 sem projecao em caso de erro */ }
+    }
     return out;
-  }, [cotasPatrimOverride]);
+  }, [cotasPatrimOverride, cdiAaAtual, feriadosSet]);
   
   const meta = metaEfetiva[tickerSel];
   const historicoMercado = historicoPorFundo[tickerSel];
@@ -861,7 +892,9 @@ function App({ data }) {
           <span style={{ fontSize: 11, color: '#9CA3AF' }}>
             {brapiStatus === 'success' && brapiUltAtt
               ? `Mercado atualizado: ${new Date(brapiUltAtt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
-              : 'Dados embutidos: 06/05/2026'}
+              : (DATA.data_geracao
+                  ? `Build: ${new Date(DATA.data_geracao).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${meta && meta._projAteHoje ? ' · cota projetada para hoje' : ''}`
+                  : 'Sem data_geracao')}
           </span>
         </div>
       </header>
