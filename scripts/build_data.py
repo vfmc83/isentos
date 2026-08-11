@@ -47,6 +47,17 @@ ITAU_PDF_URLS = {
     for t in ITAU_TICKERS
 }
 
+# BISE11 - feed publico (MZiQ) que alimenta o widget de sensibilidade em
+# https://bradescoasset.com.br/fundos/bise11/. O token abaixo NAO e credencial
+# de usuario: e um token de leitura publico, embutido no HTML da propria
+# pagina (window.sensibilidadeConfig), usado pelo JS do site para popular o
+# mesmo widget que qualquer visitante ve sem login. Usado aqui so para extrair
+# a linha "Cota Patrimonial (dd/mm/aa): R$ x,xx" que o widget exibe.
+BISE11_SENSIBILIDADE_URL = "https://gestora-bradescoasset.mz-sites.com/wp-json/mziq/v1/spreadsheet"
+BISE11_SENSIBILIDADE_TOKEN = (
+    "nUONu5fqor64lnA8EQMoJ2lzMjJhM2gweFU4TEF2UDJyMkoyVjJnSFVYbVZXT1pjbk1KdGU2bmsxZnM9"
+)
+
 # Dois hosts espelhados do Yahoo. Se query1 falhar/zerar, tenta query2.
 YAHOO_HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"]
 YAHOO_URL_TPL = (
@@ -107,9 +118,7 @@ FUNDOS_BASE = {
         "cota_inicial": 100.00,
         "data_liq_primaria": "2026-03-31",
         "data_inicio_fundo": "2026-02-13",
-        # Vencimento: so o ano (2031) e conhecido publicamente pelo nome do fundo;
-        # dia/mes exatos nao confirmados. Ajustar assim que confirmado.
-        "vencimento": "2031-12-31",
+        "vencimento": "2031-03-31",
         "taxa_adm": 0.20,
         "tipo": "FIC FI-Infra Isento 2031",
         # Sem PDF automatico (ver ITAU_PDF_URLS), entao yld_pct_cdi nao vem de PDF
@@ -197,6 +206,51 @@ def parse_sensibilidade_pdf(pdf_bytes: bytes) -> dict:
         out["caixa_pct"] = float(m.group(1).replace(",", "."))
 
     return out
+
+
+def fetch_bise11_cota() -> dict:
+    """Busca a Cota Patrimonial (dd/mm/aa) do BISE11 no feed publico da Bradesco
+    Asset (mesmo usado pelo widget em bradescoasset.com.br/fundos/bise11/).
+
+    Faz o parse do JSON e procura a frase "Cota Patrimonial (dd/mm/aa): R$ x,xx"
+    em qualquer célula da planilha (em vez de depender de uma chave fixa), pra
+    não quebrar se o layout da planilha mudar.
+
+    Retorna {"data_ref": "YYYY-MM-DD", "cota_patrimonial_ref": float} ou {} se
+    falhar (nesse caso o chamador cai no fallback por ancoras+CDI).
+    """
+    url = f"{BISE11_SENSIBILIDADE_URL}?token={BISE11_SENSIBILIDADE_TOKEN}"
+    try:
+        raw = http_get(url, accept="application/json")
+        payload = json.loads(raw)
+    except Exception as e:
+        print(f"    FALHA (fetch feed Bradesco): {e}", flush=True)
+        return {}
+
+    # Achata todas as células de texto da planilha num único blob e procura a
+    # frase ali -- json.loads já desfaz o escaping ("\/" -> "/") do payload.
+    celulas = []
+    worksheet = payload.get("Worksheet") if isinstance(payload, dict) else None
+    if isinstance(worksheet, dict):
+        for linha in worksheet.values():
+            if isinstance(linha, dict):
+                celulas.extend(str(v) for v in linha.values() if v)
+    texto = " | ".join(celulas) if celulas else json.dumps(payload, ensure_ascii=False)
+
+    m = re.search(
+        r"Cota Patrimonial\s*\((\d{2})/(\d{2})/(\d{2})\)\s*:\s*R\$\s*([\d.,]+)",
+        texto, re.I,
+    )
+    if not m:
+        print("    FALHA: 'Cota Patrimonial' nao encontrada no feed Bradesco", flush=True)
+        return {}
+
+    dd, mm, yy, val = m.groups()
+    try:
+        cota = float(val.replace(".", "").replace(",", "."))
+    except ValueError:
+        return {}
+    return {"data_ref": f"20{yy}-{mm}-{dd}", "cota_patrimonial_ref": cota}
 
 
 def fetch_yahoo_historico(ticker: str) -> list:
@@ -434,6 +488,18 @@ def main():
         if faltando:
             pdf_status[t] = f"{pdf_status.get(t, '?')}(faltou:{','.join(faltando)})"
 
+    # 1.2) BISE11 - Cota Patrimonial via feed público da Bradesco Asset (mesmo
+    #      widget de bradescoasset.com.br/fundos/bise11/). Se falhar, o card
+    #      cai no fallback por âncoras+CDI (seção 4.1 abaixo).
+    print("\n=== Buscando Cota Patrimonial BISE11 (Bradesco) ===", flush=True)
+    bise11_live = fetch_bise11_cota()
+    if bise11_live:
+        fundos["BISE11"]["cota_patrimonial_ref"] = bise11_live["cota_patrimonial_ref"]
+        fundos["BISE11"]["data_ref"] = bise11_live["data_ref"]
+        print(f"    OK: {bise11_live}", flush=True)
+    else:
+        print("    sem dado novo -- cai no fallback por âncoras+CDI (seção 4.1)", flush=True)
+
     # 2) Yahoo
     print("\n=== Baixando histórico Yahoo Finance ===", flush=True)
     historico = {}
@@ -498,9 +564,12 @@ def main():
 
     # 4.1) Fundos sem PDF de sensibilidade (ex.: BISE11) usam a cota patrimonial
     #      calculada (ancoras + CDI) como cota_patrimonial_ref/data_ref do card,
-    #      ja que nao ha PDF automatico para preencher esses campos.
+    #      caso ainda nao tenham vindo de uma fonte ao vivo (ex.: BISE11 via
+    #      feed publico da Bradesco na secao 1.2 -- tem prioridade sobre isso).
     for t in TICKERS:
         if t in ITAU_PDF_URLS:
+            continue
+        if fundos[t].get("cota_patrimonial_ref") is not None:
             continue
         serie_pat = historico_patrim.get(t) or []
         if serie_pat:
