@@ -3,12 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Engage · Itaú Isentos · Dashboard ISET11 / ISEN11 / ISTT11 / ISNT11</title>
+<title>Engage · Isentos Listados · Dashboard ISET11 / ISEN11 / ISTT11 / ISNT11 / BISE11</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
 <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<!-- Fallback offline: snapshot gerado pelo build_data.py. Só é usado se o fetch de
+     ./data.json falhar (ex.: arquivo aberto com duplo-clique via file://, onde o
+     navegador bloqueia fetch por CORS). Quando servido por http(s), o fetch normal
+     tem prioridade e busca os dados mais recentes. -->
+<script src="./data.js"></script>
 <style>
   html, body { margin: 0; padding: 0; background: #F9FAFB; min-height: 100vh; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #111827; }
@@ -77,7 +82,13 @@ const FUNDO_CORES = {
   ISEN11: { primary: '#0F6E56', soft: '#E1F5EE', dark: '#085041' },
   ISTT11: { primary: '#534AB7', soft: '#EEEDFE', dark: '#3C3489' },
   ISNT11: { primary: '#993C1D', soft: '#FAECE7', dark: '#712B13' },
+  BISE11: { primary: '#CC092F', soft: '#FCE8EC', dark: '#8F0620' },
 };
+
+// Todos os tickers do dashboard (Itaú + Bradesco). Usado nos loops gerais
+// (Yahoo, cards, seletores). O fetch de PDF Itaú (linha ~448) continua
+// escopado só aos 4 tickers Itaú, pois BISE11 não tem PDF nesse formato.
+const ALL_TICKERS = ['ISET11', 'ISEN11', 'ISTT11', 'ISNT11', 'BISE11'];
 
 function parseDate(iso) { return new Date(iso + 'T12:00:00'); }
 function fmtDateBR(iso) {
@@ -219,29 +230,29 @@ function FundoCard({ ticker, meta, volMed, onSelect, isSelected }) {
         <span style={{
           fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 600,
           background: cores.soft, color: cores.dark
-        }}>{meta.yld_pct_cdi}% CDI</span>
+        }}>{meta.yld_pct_cdi != null ? meta.yld_pct_cdi : '—'}% CDI</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
         <div>
           <div style={{ color: '#9CA3AF', fontSize: 10 }}>Cota Patrim.</div>
-          <div style={{ color: '#111827', fontWeight: 600 }}>{fmtMoney(meta.cota_patrimonial_ref)}</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.cota_patrimonial_ref != null ? fmtMoney(meta.cota_patrimonial_ref) : '—'}</div>
         </div>
         <div>
           <div style={{ color: '#9CA3AF', fontSize: 10 }}>Duration</div>
-          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.duration.toFixed(2).replace('.',',')} anos</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.duration != null ? meta.duration.toFixed(2).replace('.',',') + ' anos' : '—'}</div>
         </div>
         <div>
           <div style={{ color: '#9CA3AF', fontSize: 10 }}>Vol. Médio 30d</div>
-          <div style={{ color: '#111827', fontWeight: 600 }}>{fmtMoneyCompact(volMed.volume)}</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{volMed && volMed.volume != null ? fmtMoneyCompact(volMed.volume) : '—'}</div>
         </div>
         <div>
           <div style={{ color: '#9CA3AF', fontSize: 10 }}>PL</div>
-          <div style={{ color: '#111827', fontWeight: 600 }}>{fmtMoneyCompact(meta.pl)}</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.pl != null ? fmtMoneyCompact(meta.pl) : '—'}</div>
         </div>
       </div>
       <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9CA3AF' }}>
         <span><Calendar size={10} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />Venc: {fmtDateBR(meta.vencimento)}</span>
-        <span>{volMed.neg.toFixed(0)} negócios/dia</span>
+        <span>{volMed && volMed.neg != null ? volMed.neg.toFixed(0) + ' negócios/dia' : '—'}</span>
       </div>
     </button>
   );
@@ -526,7 +537,7 @@ function App({ data }) {
   useEffect(() => {
     const fetchYahoo = async () => {
       setBrapiStatus('loading');
-      const tickers = ['ISET11','ISEN11','ISTT11','ISNT11'];
+      const tickers = ALL_TICKERS;
       const out = {};
       const erros = [];
       
@@ -597,7 +608,7 @@ function App({ data }) {
 
   const historicoPorFundo = useMemo(() => {
     const out = {};
-    for (const t of ['ISET11','ISEN11','ISTT11','ISNT11']) {
+    for (const t of ALL_TICKERS) {
       const embutido = DATA.historico[t] || [];
       const live = ((brapiStatus === 'success' || brapiStatus === 'success_today_only' || brapiStatus === 'partial') && brapiHist[t]) ? brapiHist[t] : [];
       if (live.length === 0) {
@@ -614,7 +625,7 @@ function App({ data }) {
   
   const volMedPorFundo = useMemo(() => {
     const o = {};
-    for (const t of ['ISET11','ISEN11','ISTT11','ISNT11']) {
+    for (const t of ALL_TICKERS) {
       o[t] = calcVolMed30(historicoPorFundo[t]);
     }
     return o;
@@ -622,7 +633,7 @@ function App({ data }) {
   
   const metaEfetiva = useMemo(() => {
     const out = {};
-    for (const t of ['ISET11','ISEN11','ISTT11','ISNT11']) {
+    for (const t of ALL_TICKERS) {
       const base = DATA.fundos[t];
       const overrides = cotasPatrimOverride[t] || {};
       const datas = Object.keys(overrides).sort();
@@ -873,10 +884,10 @@ function App({ data }) {
           <img src={LOGO_DATA_URI} alt="Engage" style={{ height: 48, width: 'auto', flexShrink: 0 }} />
           <div style={{ borderLeft: '1px solid #E5E7EB', paddingLeft: 16 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: '#111827' }}>
-              Itaú Isentos · Dashboard
+              Isentos Listados · Dashboard
             </h1>
             <p style={{ fontSize: 13, color: '#6B7280', margin: '4px 0 0' }}>
-              ISET11 · ISEN11 · ISTT11 · ISNT11 — fundos de infraestrutura isentos de IR
+              ISET11 · ISEN11 · ISTT11 · ISNT11 · BISE11 — fundos de infraestrutura isentos de IR
             </p>
           </div>
         </div>
@@ -899,8 +910,8 @@ function App({ data }) {
         </div>
       </header>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-        {['ISET11','ISEN11','ISTT11','ISNT11'].map(t => (
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 24 }}>
+        {ALL_TICKERS.map(t => (
           <FundoCard
             key={t}
             ticker={t}
@@ -1048,7 +1059,7 @@ function App({ data }) {
             <label style={{ fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.04em' }}>Ativo</label>
             <select value={simTicker} onChange={e => { setSimTicker(e.target.value); setSimPreco(metaEfetiva[e.target.value].cota_patrimonial_ref * 0.999); }}
               style={{ width: '100%', padding: '8px 10px', marginTop: 4, border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, background: '#FFF' }}>
-              {['ISET11','ISEN11','ISTT11','ISNT11'].map(t => (
+              {ALL_TICKERS.map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
@@ -1123,7 +1134,7 @@ function App({ data }) {
         <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: '1px solid #E5E7EB' }}>
           <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: '#111827' }}>1. Preços de mercado B3 (Yahoo Finance)</h4>
           <p style={{ fontSize: 11, color: '#6B7280', margin: '6px 0 0', lineHeight: 1.5 }}>
-            Os preços de mercado são buscados automaticamente do Yahoo Finance (ISET11.SA, ISEN11.SA, ISTT11.SA, ISNT11.SA) através de proxy CORS no carregamento da página. Sem cadastro, sem token. Range: último 1 ano de fechamentos diários.
+            Os preços de mercado são buscados automaticamente do Yahoo Finance (ISET11.SA, ISEN11.SA, ISTT11.SA, ISNT11.SA, BISE11.SA) através de proxy CORS no carregamento da página. Sem cadastro, sem token. Range: último 1 ano de fechamentos diários.
             <br/>Status: <strong style={{ color: '#374151' }}>{brapiStatus}</strong>
             {brapiUltAtt && <> · última atualização: {new Date(brapiUltAtt).toLocaleString('pt-BR')}</>}
           </p>
@@ -1173,8 +1184,8 @@ function App({ data }) {
           <p style={{ fontSize: 11, color: '#6B7280', margin: '0 0 10px', lineHeight: 1.5 }}>
             Valores aqui aparecem automaticamente quando você usa a seção 2. Se o auto-update falhar, edite os valores manualmente — o cabeçalho dos PDFs "Sensibilidade-{'{TICKER}'}.pdf" mostra a cota patrimonial mais recente.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-            {['ISET11','ISEN11','ISTT11','ISNT11'].map(t => {
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+            {ALL_TICKERS.map(t => {
               const overrides = cotasPatrimOverride[t] || {};
               const datas = Object.keys(overrides).sort();
               const ultIso = datas[datas.length - 1];
@@ -1247,7 +1258,7 @@ function App({ data }) {
           <div>
             <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>ATIVO</label>
             <select value={s2Ticker} onChange={e => setS2Ticker(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }}>
-              {['ISET11','ISEN11','ISTT11','ISNT11'].map(t => e('option', { key: t, value: t }, t))}
+              {ALL_TICKERS.map(t => e('option', { key: t, value: t }, t))}
             </select>
           </div>
           <div>
@@ -1328,12 +1339,23 @@ function AppLoader() {
     fetch('./data.json?v=' + Date.now(), { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(json => setData(json))
-      .catch(e => setErr(e.message || String(e)));
+      .catch(e => {
+        // Fallback: fetch falha tipicamente quando o arquivo é aberto via
+        // duplo-clique (file://), onde o navegador bloqueia fetch por CORS.
+        // Usa o snapshot embutido por data.js (ver <script> no <head>) se existir.
+        if (typeof window !== 'undefined' && window.__ENGAGE_DATA__) {
+          setData(window.__ENGAGE_DATA__);
+        } else {
+          setErr(e.message || String(e));
+        }
+      });
   }, []);
   if (err) return e('div', { className: 'err-screen' },
     e('strong', null, 'Erro ao carregar dados'),
     e('div', { style: { color: '#6B7280' } }, err),
-    e('div', { style: { color: '#9CA3AF', fontSize: 12, marginTop: 12 } }, 'Tente recarregar a página.')
+    e('div', { style: { color: '#9CA3AF', fontSize: 12, marginTop: 12 } },
+      'Se abriu o arquivo com duplo-clique, o navegador bloqueia o carregamento local por segurança (CORS). ' +
+      'Rode "python -m http.server" na pasta e abra http://localhost:8000, ou use a versão publicada.')
   );
   if (!data) return e('div', { className: 'loading-screen' },
     e('div', { className: 'loading-spinner' }),
