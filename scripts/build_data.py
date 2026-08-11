@@ -31,12 +31,20 @@ UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_0) AppleWebKit/605.1.15 EngageDa
 TIMEOUT = 30
 
 OUT_PATH = Path(__file__).resolve().parent.parent / "data.json"
+# Snapshot embutido no HTML (script classico, funciona com file:// sem CORS) para
+# quando o dashboard e aberto localmente por duplo-clique, sem servidor. Ver uso
+# em index.html (AppLoader) -- fallback apenas se o fetch de data.json falhar.
+OUT_PATH_JS = Path(__file__).resolve().parent.parent / "data.js"
 
-TICKERS = ["ISET11", "ISEN11", "ISTT11", "ISNT11"]
+ITAU_TICKERS = ["ISET11", "ISEN11", "ISTT11", "ISNT11"]
+# BISE11 (Bradesco Isento 2031) e de outro emissor e nao tem PDF de sensibilidade
+# no mesmo formato/URL do Itau. Sua cota patrimonial e derivada de anchors.json +
+# CDI (ver secao 4.1 em main()), nao de PDF baixado automaticamente.
+TICKERS = ITAU_TICKERS + ["BISE11"]
 
 ITAU_PDF_URLS = {
     t: f"https://assetfront.arquivosparceiros.cloud.itau.com.br/FND/Sensibilidade-{t[:-2]}.pdf"
-    for t in TICKERS
+    for t in ITAU_TICKERS
 }
 
 # Dois hosts espelhados do Yahoo. Se query1 falhar/zerar, tenta query2.
@@ -92,6 +100,23 @@ FUNDOS_BASE = {
         "vencimento": "2028-03-29",
         "taxa_adm": 0.361,
         "tipo": "RF Duração Livre Mar 28",
+    },
+    "BISE11": {
+        "cnpj": "64.964.326/0001-11",
+        "nome_completo": "Bradesco Isento 2031",
+        "cota_inicial": 100.00,
+        "data_liq_primaria": "2026-03-31",
+        "data_inicio_fundo": "2026-02-13",
+        # Vencimento: so o ano (2031) e conhecido publicamente pelo nome do fundo;
+        # dia/mes exatos nao confirmados. Ajustar assim que confirmado.
+        "vencimento": "2031-12-31",
+        "taxa_adm": 0.20,
+        "tipo": "FIC FI-Infra Isento 2031",
+        # Sem PDF automatico (ver ITAU_PDF_URLS), entao yld_pct_cdi nao vem de PDF
+        # como nos fundos Itau -- precisa estar aqui, senao fica None e quebra
+        # (NaN) o Simulador de Yield e o badge do card. Retorno-alvo divulgado
+        # pela Bradesco Asset: 95% CDI para quem entrou na oferta primaria.
+        "yld_pct_cdi": 95.0,
     },
 }
 
@@ -360,27 +385,54 @@ def main():
     for t, base in FUNDOS_BASE.items():
         fundos[t] = dict(base)
 
-    # 1) PDFs Itaú
-    print("\n=== Baixando PDFs Itaú ===", flush=True)
-    for t, url in ITAU_PDF_URLS.items():
-        print(f"  {t}: {url}", flush=True)
-        try:
-            pdf_bytes = http_get(url, accept="application/pdf")
-            extraido = parse_sensibilidade_pdf(pdf_bytes)
-            print(f"    OK: {extraido}", flush=True)
-            for k, v in extraido.items():
-                if v is not None:
-                    fundos[t][k] = v
-        except Exception as e:
-            print(f"    FALHA: {e}", flush=True)
-
-    # data.json anterior (fallback de último mercado se o Yahoo falhar hoje)
+    # data.json anterior — carregado cedo para servir de fallback de PDF e de mercado.
     prev = {}
     if OUT_PATH.exists():
         try:
             prev = json.loads(OUT_PATH.read_text(encoding="utf-8"))
         except Exception as e:
             print(f"  aviso: não foi possível ler data.json anterior: {e}", flush=True)
+    prev_fundos = prev.get("fundos") or {}
+
+    # 1) PDFs Itaú — Cota Patrimonial, PL, Duration, Yield. O frontend (FundoCard)
+    #    depende desses campos; se faltarem, a página fica em branco.
+    PDF_FIELDS = ("data_ref", "cota_patrimonial_ref", "pl", "duration",
+                  "yld_pct_cdi", "qtd_cotas", "caixa_pct")
+    PDF_ESSENCIAIS = ("cota_patrimonial_ref", "pl", "duration", "yld_pct_cdi")
+    pdf_status = {}
+    print("\n=== Baixando PDFs Itaú ===", flush=True)
+    for t, url in ITAU_PDF_URLS.items():
+        print(f"  {t}: {url}", flush=True)
+        try:
+            pdf_bytes = http_get(url, accept="application/pdf")
+            extraido = parse_sensibilidade_pdf(pdf_bytes)
+            for k, v in extraido.items():
+                if v is not None:
+                    fundos[t][k] = v
+            faltando = [k for k in PDF_ESSENCIAIS if fundos[t].get(k) is None]
+            pdf_status[t] = "ok" if not faltando else "parcial"
+            print(f"    {pdf_status[t].upper()}: {extraido}", flush=True)
+        except Exception as e:
+            pdf_status[t] = "falha"
+            print(f"    FALHA: {e}", flush=True)
+
+    # 1.1) Carry-forward: campos essenciais ausentes herdam do data.json anterior,
+    #      para um tropeço do PDF do Itaú não derrubar o dashboard (mesma lógica do
+    #      fallback de mercado do Yahoo). pdf_status sinaliza degradação p/ o monitor.
+    for t in ITAU_PDF_URLS:
+        pf = prev_fundos.get(t) or {}
+        herdados = []
+        for k in PDF_FIELDS:
+            if fundos[t].get(k) is None and pf.get(k) is not None:
+                fundos[t][k] = pf[k]
+                herdados.append(k)
+        if herdados:
+            print(f"    {t}: herdado do anterior -> {herdados}", flush=True)
+            if pdf_status.get(t) != "ok":
+                pdf_status[t] = f"{pdf_status.get(t, '?')}+herdado"
+        faltando = [k for k in PDF_ESSENCIAIS if fundos[t].get(k) is None]
+        if faltando:
+            pdf_status[t] = f"{pdf_status.get(t, '?')}(faltou:{','.join(faltando)})"
 
     # 2) Yahoo
     print("\n=== Baixando histórico Yahoo Finance ===", flush=True)
@@ -444,6 +496,17 @@ def main():
         print(f"  FALHA: {e}", flush=True)
         historico_patrim = {}
 
+    # 4.1) Fundos sem PDF de sensibilidade (ex.: BISE11) usam a cota patrimonial
+    #      calculada (ancoras + CDI) como cota_patrimonial_ref/data_ref do card,
+    #      ja que nao ha PDF automatico para preencher esses campos.
+    for t in TICKERS:
+        if t in ITAU_PDF_URLS:
+            continue
+        serie_pat = historico_patrim.get(t) or []
+        if serie_pat:
+            fundos[t]["cota_patrimonial_ref"] = serie_pat[-1]["cota"]
+            fundos[t]["data_ref"] = serie_pat[-1]["d"]
+
     # 5) Monta JSON final
     out = {
         "fundos": fundos,
@@ -452,12 +515,21 @@ def main():
         "feriados": FERIADOS_B3,
         "data_geracao": datetime.now(timezone.utc).isoformat(),
         "historico_patrim": historico_patrim,
+        "pdf_status": pdf_status,
     }
 
-    OUT_PATH.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    out_json = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
+    OUT_PATH.write_text(out_json, encoding="utf-8")
+    OUT_PATH_JS.write_text(f"window.__ENGAGE_DATA__ = {out_json};", encoding="utf-8")
 
     tamanho_kb = OUT_PATH.stat().st_size / 1024
-    print(f"\n=== OK gerado: {OUT_PATH} ({tamanho_kb:.1f} KB) ===", flush=True)
+    print(f"\n=== OK gerado: {OUT_PATH} ({tamanho_kb:.1f} KB) | fallback: {OUT_PATH_JS.name} ===", flush=True)
+
+    # Sinaliza degradação dos PDFs (build segue verde, mas avisa no log p/ o monitor).
+    degradado = {t: s for t, s in pdf_status.items() if not s.startswith("ok")}
+    if degradado:
+        print(f"AVISO: PDFs Itaú degradados (usando carry-forward): {degradado}",
+              file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":
