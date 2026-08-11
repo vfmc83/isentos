@@ -149,6 +149,42 @@ FERIADOS_B3 = [
 ]
 
 
+def contar_du_b3(data_ini_iso: str, data_fim_iso: str) -> int:
+    """Conta dias úteis estritamente após data_ini até data_fim (inclusive).
+
+    Mesma convenção do `contarDU()` do frontend (index.html) -- usada ali para
+    o stat "DU até vencimento". Mantida em espelho aqui (não importada, já que
+    um roda em JS no browser e o outro em Python no build) para que a Duration
+    calculada do BISE11 bata com o DU até vencimento mostrado no card.
+    """
+    feriados_set = set(FERIADOS_B3)
+    ini = datetime.strptime(data_ini_iso, "%Y-%m-%d").date()
+    fim = datetime.strptime(data_fim_iso, "%Y-%m-%d").date()
+
+    def is_du(d):
+        if d.weekday() >= 5:
+            return False
+        return d.isoformat() not in feriados_set
+
+    n = 0
+    d = ini + timedelta(days=1)
+    while d <= fim:
+        if is_du(d):
+            n += 1
+        d += timedelta(days=1)
+    return n
+
+
+def duration_anos_du252(data_ref_iso: str, vencimento_iso: str) -> float:
+    """Duration (anos) via convenção ANBIMA DU/252, assumindo pagamento único
+    no vencimento (bullet) -- caso do BISE11, sem cupons intermediários. Para
+    um zero-coupon/bullet, a duration de Macaulay é exatamente o prazo até o
+    vencimento, então isso equivale ao "DU até vencimento" do card / 252.
+    """
+    du = contar_du_b3(data_ref_iso, vencimento_iso)
+    return round(du / 252.0, 2)
+
+
 def http_get(url: str, *, accept: str = "*/*") -> bytes:
     """GET com User-Agent e retries simples."""
     ultimo = None
@@ -575,6 +611,20 @@ def main():
         if serie_pat:
             fundos[t]["cota_patrimonial_ref"] = serie_pat[-1]["cota"]
             fundos[t]["data_ref"] = serie_pat[-1]["d"]
+
+    # 4.2) Duration do BISE11 -- sem PDF de sensibilidade (que traz a Duration
+    #      pronta pros fundos Itau), entao calculamos: pagamento unico no
+    #      vencimento (bullet, sem cupom), logo a duration de Macaulay e
+    #      exatamente o prazo ate o vencimento. Convencao ANBIMA DU/252, igual
+    #      ao "DU ate vencimento" ja mostrado no card (mesma contagem de dias
+    #      uteis do frontend -- ver contar_du_b3()).
+    if fundos["BISE11"].get("data_ref"):
+        try:
+            fundos["BISE11"]["duration"] = duration_anos_du252(
+                fundos["BISE11"]["data_ref"], fundos["BISE11"]["vencimento"]
+            )
+        except Exception as e:
+            print(f"    aviso: falha ao calcular duration BISE11: {e}", flush=True)
 
     # 5) Monta JSON final
     out = {
