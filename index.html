@@ -988,7 +988,20 @@ function App({ data }) {
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 16 }}>
           <StatCard label="Cota patrimonial" value={fmtMoney(meta.cota_patrimonial_ref)} sub={fmtDateBR(meta.data_ref)} accent={FUNDO_CORES[tickerSel].dark} />
-          <StatCard label="Último mercado" value={ultimoFechamentoMercado ? fmtMoney(ultimoFechamentoMercado.c) : '—'} sub={ultimoFechamentoMercado ? fmtDateBR(ultimoFechamentoMercado.d) : 'sem dado'} />
+          <StatCard label="Último mercado" value={ultimoFechamentoMercado ? fmtMoney(ultimoFechamentoMercado.c) : '—'} sub={ultimoFechamentoMercado ? (() => {
+            const duAtras = contarDU(ultimoFechamentoMercado.d, meta.data_ref, feriadosSet);
+            const hojeReal = (() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+            const duHoje = contarDU(ultimoFechamentoMercado.d, hojeReal, feriadosSet);
+            const du = Math.max(duAtras, duHoje);
+            if (du <= 0) return fmtDateBR(ultimoFechamentoMercado.d) + ' · hoje';
+            if (du === 1) return fmtDateBR(ultimoFechamentoMercado.d) + ' · ontem';
+            return fmtDateBR(ultimoFechamentoMercado.d) + ' · há ' + du + ' pregões (sem negócio desde então)';
+          })() : 'sem dado'}
+            accent={ultimoFechamentoMercado ? (() => {
+              const hojeReal = (() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+              const du = contarDU(ultimoFechamentoMercado.d, hojeReal, feriadosSet);
+              return du >= 3 ? '#B45309' : undefined;
+            })() : undefined} />
           <StatCard label="Desconto vs patrim."
             value={ultimoFechamentoMercado ? fmtPct(((ultimoFechamentoMercado.c / meta.cota_patrimonial_ref) - 1) * 100, 2) : '—'}
             sub={!ultimoFechamentoMercado ? 'sem dado' : (ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? 'mercado abaixo' : 'mercado acima')}
