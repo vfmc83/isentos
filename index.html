@@ -144,10 +144,12 @@ function contarDU(dataIniIso, dataFimIso, feriadosSet) {
 function calcVolMed30(historico) {
   const ult30 = historico.slice(-30);
   if (ult30.length === 0) return { volume: 0, qtd: 0, neg: 0, pregoes: 0 };
-  const vol = ult30.reduce((a, x) => a + x.v, 0) / ult30.length;
-  const qtd = ult30.reduce((a, x) => a + x.q, 0) / ult30.length;
+  // Yahoo Finance: v = numero de cotas negociadas, c = preco unitario
+  // Volume financeiro medio (R$) = media(cotas * preco)
+  const volFin = ult30.reduce((a, x) => a + (x.v * x.c), 0) / ult30.length;
+  const qtd = ult30.reduce((a, x) => a + x.v, 0) / ult30.length;
   const neg = ult30.reduce((a, x) => a + x.n, 0) / ult30.length;
-  return { volume: vol, qtd: qtd, neg: neg, pregoes: ult30.length };
+  return { volume: volFin, qtd: qtd, neg: neg, pregoes: ult30.length };
 }
 
 function reconstruirCotaPatrimonial({ cotaInicial, dtLiqPrimaria, dtRef, yldPctCdi, cdiSerie, feriadosSet , historicoPatrim}) {
@@ -252,7 +254,7 @@ function FundoCard({ ticker, meta, volMed, onSelect, isSelected }) {
       </div>
       <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9CA3AF' }}>
         <span><Calendar size={10} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />Venc: {fmtDateBR(meta.vencimento)}</span>
-        <span>{volMed && volMed.neg != null ? volMed.neg.toFixed(0) + ' negócios/dia' : '—'}</span>
+        <span>{volMed && volMed.qtd > 0 ? volMed.qtd.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' cotas/dia' : '—'}</span>
       </div>
     </button>
   );
@@ -535,66 +537,10 @@ function App({ data }) {
   }, []);
   
   useEffect(() => {
-    const fetchYahoo = async () => {
-      setBrapiStatus('loading');
-      const tickers = ALL_TICKERS;
-      const out = {};
-      const erros = [];
-      
-      for (const t of tickers) {
-        const symbol = t + '.SA';
-        const target = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1d`;
-        let dadosOk = null;
-        for (const proxyFn of CORS_PROXIES) {
-          try {
-            const r = await fetch(proxyFn(target));
-            if (!r.ok) continue;
-            const json = await r.json();
-            const result = json?.chart?.result?.[0];
-            if (!result || !Array.isArray(result.timestamp)) continue;
-            const ts = result.timestamp;
-            const closes = result.indicators?.quote?.[0]?.close || [];
-            const vols = result.indicators?.quote?.[0]?.volume || [];
-            const serie = [];
-            for (let i = 0; i < ts.length; i++) {
-              if (closes[i] == null) continue;
-              const iso = new Date(ts[i] * 1000).toISOString().split('T')[0];
-              serie.push({
-                d: iso,
-                c: Number(closes[i].toFixed(4)),
-                v: Number((vols[i] || 0).toFixed(0)),
-                q: 0, n: 0,
-              });
-            }
-            serie.sort((a, b) => a.d.localeCompare(b.d));
-            const meta = result.meta;
-            if (meta?.regularMarketPrice && meta?.regularMarketTime) {
-              const todayIso = new Date(meta.regularMarketTime * 1000).toISOString().split('T')[0];
-              if (!serie.length || serie[serie.length - 1].d !== todayIso) {
-                serie.push({
-                  d: todayIso,
-                  c: Number(meta.regularMarketPrice.toFixed(4)),
-                  v: Number((meta.regularMarketVolume || 0).toFixed(0)),
-                  q: 0, n: 0,
-                });
-              }
-            }
-            if (serie.length > 0) { dadosOk = serie; break; }
-          } catch (e) {}
-        }
-        if (dadosOk) out[t] = dadosOk;
-        else erros.push(t);
-      }
-      
-      if (Object.keys(out).length === 0) {
-        setBrapiStatus('error');
-        return;
-      }
-      setBrapiHist(out);
-      setBrapiUltAtt(new Date().toISOString());
-      setBrapiStatus(erros.length === 0 ? 'success' : 'partial');
-    };
-    fetchYahoo();
+    // Fetch client-side de Yahoo Finance removido: proxies CORS gratuitos
+    // sao instaveis e o data.json ja vem com historico completo do servidor
+    // via GitHub Action diario. Mantemos status 'idle' silencioso.
+    setBrapiStatus('idle');
   }, []);
 
   const cdiAaAtual = useMemo(() => {
@@ -894,7 +840,15 @@ function App({ data }) {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <CDIStatusBadge status={cdiStatus} cdiAaAtual={cdiAaAtual} lastUpdate={Object.keys(cdiSerie).length > 0 ? `${Object.keys(cdiSerie).length} dias BCB` : null} />
-            <BrapiBadge status={brapiStatus} ultAtt={brapiUltAtt} />
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+              borderRadius: 999, background: '#E1F5EE', color: '#0F6E56', fontSize: 11, fontWeight: 600
+            }}>
+              <Activity size={11} />
+              {DATA.data_geracao
+                ? `Dados de ${new Date(DATA.data_geracao).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+                : 'Dados atualizados'}
+            </span>
             <button onClick={() => setShowSettings(s => !s)}
               style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, borderRadius: 999, border: '1px solid #D1D5DB', background: '#FFF', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, color: '#374151' }}>
               <Activity size={11} />Config
