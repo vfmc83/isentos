@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Engage · Isentos Listados · Dashboard ISET11 / ISEN11 / ISTT11 / ISNT11 / BISE11</title>
+<title>Engage Â· Isentos Listados Â· Dashboard ISET11 / ISEN11 / ISTT11 / ISNT11 / BISE11</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
 <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
-<!-- Fallback offline: snapshot gerado pelo build_data.py. Só é usado se o fetch de
+<!-- Fallback offline: snapshot gerado pelo build_data.py. SÃ³ Ã© usado se o fetch de
      ./data.json falhar (ex.: arquivo aberto com duplo-clique via file://, onde o
      navegador bloqueia fetch por CORS). Quando servido por http(s), o fetch normal
      tem prioridade e busca os dados mais recentes. -->
@@ -85,9 +85,9 @@ const FUNDO_CORES = {
   BISE11: { primary: '#CC092F', soft: '#FCE8EC', dark: '#8F0620' },
 };
 
-// Todos os tickers do dashboard (Itaú + Bradesco). Usado nos loops gerais
-// (Yahoo, cards, seletores). O fetch de PDF Itaú (linha ~448) continua
-// escopado só aos 4 tickers Itaú, pois BISE11 não tem PDF nesse formato.
+// Todos os tickers do dashboard (ItaÃº + Bradesco). Usado nos loops gerais
+// (Yahoo, cards, seletores). O fetch de PDF ItaÃº (linha ~448) continua
+// escopado sÃ³ aos 4 tickers ItaÃº, pois BISE11 nÃ£o tem PDF nesse formato.
 const ALL_TICKERS = ['ISET11', 'ISEN11', 'ISTT11', 'ISNT11', 'BISE11'];
 
 function parseDate(iso) { return new Date(iso + 'T12:00:00'); }
@@ -147,7 +147,7 @@ function calcVolMed30(historico) {
   // Yahoo Finance: v = numero de cotas negociadas, c = preco unitario
   // Volume financeiro medio (R$) = media(cotas * preco)
   const volFin = ult30.reduce((a, x) => a + (x.v * x.c), 0) / ult30.length;
-  const qtd = ult30.reduce((a, x) => a + x.v, 0) / ult30.length;
+  const qtd = ult30.reduce((a, x) => a + (x.v * x.c), 0) / ult30.length;
   const neg = ult30.reduce((a, x) => a + x.n, 0) / ult30.length;
   return { volume: volFin, qtd: qtd, neg: neg, pregoes: ult30.length };
 }
@@ -232,29 +232,29 @@ function FundoCard({ ticker, meta, volMed, onSelect, isSelected }) {
         <span style={{
           fontSize: 10, padding: '3px 8px', borderRadius: 6, fontWeight: 600,
           background: cores.soft, color: cores.dark
-        }}>{meta.yld_pct_cdi != null ? meta.yld_pct_cdi : '—'}% CDI</span>
+        }}>{meta.yld_pct_cdi != null ? meta.yld_pct_cdi : 'â€”'}% CDI</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
         <div>
           <div style={{ color: '#9CA3AF', fontSize: 10 }}>Cota Patrim.</div>
-          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.cota_patrimonial_ref != null ? fmtMoney(meta.cota_patrimonial_ref) : '—'}</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.cota_patrimonial_ref != null ? fmtMoney(meta.cota_patrimonial_ref) : 'â€”'}</div>
         </div>
         <div>
           <div style={{ color: '#9CA3AF', fontSize: 10 }}>Duration</div>
-          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.duration != null ? meta.duration.toFixed(2).replace('.',',') + ' anos' : '—'}</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.duration != null ? meta.duration.toFixed(2).replace('.',',') + ' anos' : 'â€”'}</div>
         </div>
         <div>
-          <div style={{ color: '#9CA3AF', fontSize: 10 }}>Vol. Médio 30d</div>
-          <div style={{ color: '#111827', fontWeight: 600 }}>{volMed && volMed.volume != null ? fmtMoneyCompact(volMed.volume) : '—'}</div>
+          <div style={{ color: '#9CA3AF', fontSize: 10 }}>Vol. MÃ©dio 30d</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{volMed && volMed.volume != null ? fmtMoneyCompact(volMed.volume) : 'â€”'}</div>
         </div>
         <div>
           <div style={{ color: '#9CA3AF', fontSize: 10 }}>PL</div>
-          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.pl != null ? fmtMoneyCompact(meta.pl) : '—'}</div>
+          <div style={{ color: '#111827', fontWeight: 600 }}>{meta.pl != null ? fmtMoneyCompact(meta.pl) : 'â€”'}</div>
         </div>
       </div>
       <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9CA3AF' }}>
         <span><Calendar size={10} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />Venc: {fmtDateBR(meta.vencimento)}</span>
-        <span>{volMed && volMed.qtd > 0 ? volMed.qtd.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' cotas/dia' : '—'}</span>
+        <span>{volMed && volMed.qtd > 0 ? volMed.qtd.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' cotas/dia' : 'â€”'}</span>
       </div>
     </button>
   );
@@ -263,8 +263,8 @@ function FundoCard({ ticker, meta, volMed, onSelect, isSelected }) {
 function CDIStatusBadge({ status, cdiAaAtual, lastUpdate }) {
   const config = {
     loading:  { color: '#9CA3AF', bg: '#F3F4F6', icon: <RefreshCw size={11} className="rfc-spin" />, text: 'Carregando CDI...' },
-    success:  { color: '#0F6E56', bg: '#E1F5EE', icon: <Activity size={11} />, text: `CDI ${fmtPct(cdiAaAtual, 2)} a.a. — ${lastUpdate || 'BCB Série 12'}` },
-    fallback: { color: '#854F0B', bg: '#FAEEDA', icon: <AlertCircle size={11} />, text: 'CDI manual (API BCB indisponível)' },
+    success:  { color: '#0F6E56', bg: '#E1F5EE', icon: <Activity size={11} />, text: `CDI ${fmtPct(cdiAaAtual, 2)} a.a. â€” ${lastUpdate || 'BCB SÃ©rie 12'}` },
+    fallback: { color: '#854F0B', bg: '#FAEEDA', icon: <AlertCircle size={11} />, text: 'CDI manual (API BCB indisponÃ­vel)' },
   };
   const c = config[status];
   return (
@@ -283,10 +283,10 @@ function BrapiBadge({ status, ultAtt }) {
     no_token:           { color: '#9CA3AF', bg: '#F3F4F6', icon: <RefreshCw size={11} />, text: 'B3 aguardando...' },
     loading:            { color: '#9CA3AF', bg: '#F3F4F6', icon: <RefreshCw size={11} className="rfc-spin" />, text: 'B3 buscando Yahoo...' },
     success:            { color: '#0F6E56', bg: '#E1F5EE', icon: <Activity size={11} />, text: 'B3 ao vivo (Yahoo)' },
-    success_today_only: { color: '#0F6E56', bg: '#E1F5EE', icon: <Activity size={11} />, text: 'B3 cotação de hoje (Yahoo)' },
+    success_today_only: { color: '#0F6E56', bg: '#E1F5EE', icon: <Activity size={11} />, text: 'B3 cotaÃ§Ã£o de hoje (Yahoo)' },
     partial:            { color: '#854F0B', bg: '#FAEEDA', icon: <AlertCircle size={11} />, text: 'B3 parcial (alguns tickers)' },
-    error:              { color: '#854F0B', bg: '#FAEEDA', icon: <AlertCircle size={11} />, text: 'B3 erro · usando dados embutidos' },
-    token_invalid:      { color: '#9B1B1B', bg: '#FAE3E3', icon: <AlertCircle size={11} />, text: 'B3 token inválido' },
+    error:              { color: '#854F0B', bg: '#FAEEDA', icon: <AlertCircle size={11} />, text: 'B3 erro Â· usando dados embutidos' },
+    token_invalid:      { color: '#9B1B1B', bg: '#FAE3E3', icon: <AlertCircle size={11} />, text: 'B3 token invÃ¡lido' },
   };
   const c = config[status] || config.idle;
   return (
@@ -323,7 +323,7 @@ async function fetchPdfArrayBuffer(targetUrl) {
       if (buf.byteLength < 1000) { lastErr = new Error('Resposta muito pequena'); continue; }
       const head = new Uint8Array(buf, 0, 5);
       const hex = String.fromCharCode(...head);
-      if (!hex.startsWith('%PDF')) { lastErr = new Error('Não é PDF'); continue; }
+      if (!hex.startsWith('%PDF')) { lastErr = new Error('NÃ£o Ã© PDF'); continue; }
       return buf;
     } catch (e) {
       lastErr = e;
@@ -334,7 +334,7 @@ async function fetchPdfArrayBuffer(targetUrl) {
 
 async function pdfArrayBufferToText(buf) {
   if (typeof window === 'undefined' || !window.pdfjsLib) {
-    throw new Error('pdf.js não carregado');
+    throw new Error('pdf.js nÃ£o carregado');
   }
   const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
   let texto = '';
@@ -350,13 +350,13 @@ async function pdfArrayBufferToText(buf) {
 function parseSensibilidadeItau(texto) {
   const out = { dataRef: null, cotaPatrim: null, pl: null, duration: null, yieldPctCdi: null, qtdCotas: null, caixaPct: null };
   
-  const mData = texto.match(/Data de refer[êe]ncia:\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+  const mData = texto.match(/Data de refer[Ãªe]ncia:\s*(\d{2})\/(\d{2})\/(\d{4})/i);
   if (mData) out.dataRef = `${mData[3]}-${mData[2]}-${mData[1]}`;
   
   const mCota = texto.match(/Valor Cota Patrimonial\s*([\d.,]+)/i);
   if (mCota) out.cotaPatrim = parseFloat(mCota[1].replace(/\./g, '').replace(',', '.'));
   
-  const mPL = texto.match(/Patrim[ôo]nio L[íi]quido\s*R\$\s*([\d.,]+)/i);
+  const mPL = texto.match(/Patrim[Ã´o]nio L[Ã­i]quido\s*R\$\s*([\d.,]+)/i);
   if (mPL) out.pl = parseFloat(mPL[1].replace(/\./g, '').replace(',', '.'));
   
   const mDur = texto.match(/Duration da carteira\s*([\d.,]+)/i);
@@ -368,7 +368,7 @@ function parseSensibilidadeItau(texto) {
   const mQtd = texto.match(/Quantidade total de cotas\s*([\d.,]+)/i);
   if (mQtd) out.qtdCotas = parseFloat(mQtd[1].replace(/\./g, '').replace(',', '.'));
   
-  const mCaixa = texto.match(/Posi[çc][ãa]o em Caixa\s*([\d.,]+)\s*%/i);
+  const mCaixa = texto.match(/Posi[Ã§c][Ã£a]o em Caixa\s*([\d.,]+)\s*%/i);
   if (mCaixa) out.caixaPct = parseFloat(mCaixa[1].replace(',', '.'));
   
   return out;
@@ -453,11 +453,11 @@ function App({ data }) {
     }
     if (typeof window === 'undefined' || !window.pdfjsLib) {
       setItauUpdateStatus('error');
-      setItauUpdateMsg('Biblioteca pdf.js não carregou após 5s. Verifique sua conexão e recarregue a página.');
+      setItauUpdateMsg('Biblioteca pdf.js nÃ£o carregou apÃ³s 5s. Verifique sua conexÃ£o e recarregue a pÃ¡gina.');
       return;
     }
     
-    setItauUpdateMsg('Baixando PDFs do Itaú via proxy CORS...');
+    setItauUpdateMsg('Baixando PDFs do ItaÃº via proxy CORS...');
     const tickers = ['ISET11','ISEN11','ISTT11','ISNT11'];
     const resultados = {};
     const erros = [];
@@ -480,7 +480,7 @@ function App({ data }) {
     const ok = Object.keys(resultados);
     if (ok.length === 0) {
       setItauUpdateStatus('error');
-      setItauUpdateMsg(`Falha em todos. Provável bloqueio de proxies CORS. Detalhes: ${erros.slice(0,2).join(' | ')}`);
+      setItauUpdateMsg(`Falha em todos. ProvÃ¡vel bloqueio de proxies CORS. Detalhes: ${erros.slice(0,2).join(' | ')}`);
       return;
     }
     
@@ -501,10 +501,10 @@ function App({ data }) {
     
     if (erros.length === 0) {
       setItauUpdateStatus('success');
-      setItauUpdateMsg(`✓ Atualizados ${ok.join(', ')} com sucesso.`);
+      setItauUpdateMsg(`âœ“ Atualizados ${ok.join(', ')} com sucesso.`);
     } else {
       setItauUpdateStatus('partial');
-      setItauUpdateMsg(`✓ Atualizados: ${ok.join(', ')}. Falhou: ${erros.join(' | ')}.`);
+      setItauUpdateMsg(`âœ“ Atualizados: ${ok.join(', ')}. Falhou: ${erros.join(' | ')}.`);
     }
   };
 
@@ -830,10 +830,10 @@ function App({ data }) {
           <img src={LOGO_DATA_URI} alt="Engage" style={{ height: 48, width: 'auto', flexShrink: 0 }} />
           <div style={{ borderLeft: '1px solid #E5E7EB', paddingLeft: 16 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: '#111827' }}>
-              Isentos Listados · Dashboard
+              Isentos Listados Â· Dashboard
             </h1>
             <p style={{ fontSize: 13, color: '#6B7280', margin: '4px 0 0' }}>
-              ISET11 · ISEN11 · ISTT11 · ISNT11 · BISE11 — fundos de infraestrutura isentos de IR
+              ISET11 Â· ISEN11 Â· ISTT11 Â· ISNT11 Â· BISE11 â€” fundos de infraestrutura isentos de IR
             </p>
           </div>
         </div>
@@ -858,7 +858,7 @@ function App({ data }) {
             {brapiStatus === 'success' && brapiUltAtt
               ? `Mercado atualizado: ${new Date(brapiUltAtt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
               : (DATA.data_geracao
-                  ? `Build: ${new Date(DATA.data_geracao).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${meta && meta._projAteHoje ? ' · cota projetada para hoje' : ''}`
+                  ? `Build: ${new Date(DATA.data_geracao).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${meta && meta._projAteHoje ? ' Â· cota projetada para hoje' : ''}`
                   : 'Sem data_geracao')}
           </span>
         </div>
@@ -881,22 +881,22 @@ function App({ data }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0, color: FUNDO_CORES[tickerSel].dark }}>
-              {tickerSel} — Cota Patrimonial × Mercado × Curva CDI
+              {tickerSel} â€” Cota Patrimonial Ã— Mercado Ã— Curva CDI
             </h2>
             <p style={{ fontSize: 12, color: '#6B7280', margin: '4px 0 0' }}>
-              Reconstrução diária com calendário B3 (feriados bancários) e CDI realizado da série 12 do BCB.
+              ReconstruÃ§Ã£o diÃ¡ria com calendÃ¡rio B3 (feriados bancÃ¡rios) e CDI realizado da sÃ©rie 12 do BCB.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <label style={{ fontSize: 12, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
-              Saída % CDI:
+              SaÃ­da % CDI:
               <input type="number" step="1" min="50" max="120" value={percCdiCurva}
                 onChange={e => setPercCdiCurva(Number(e.target.value))}
                 style={{ width: 60, padding: '4px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 12 }} />
             </label>
             <label style={{ fontSize: 12, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="checkbox" checked={showFutureProjection} onChange={e => setShowFutureProjection(e.target.checked)} />
-              Projeção até vencimento
+              ProjeÃ§Ã£o atÃ© vencimento
             </label>
           </div>
         </div>
@@ -909,8 +909,8 @@ function App({ data }) {
             { id: '6M', label: '6M' },
             { id: 'YTD', label: 'YTD' },
             { id: '1Y', label: '1A' },
-            { id: 'HOJE', label: 'Histórico' },
-            { id: 'FUT', label: 'Projeção' },
+            { id: 'HOJE', label: 'HistÃ³rico' },
+            { id: 'FUT', label: 'ProjeÃ§Ã£o' },
             { id: 'TUDO', label: 'Tudo' },
             { id: 'CUSTOM', label: 'Custom' },
           ].map(opt => (
@@ -934,14 +934,14 @@ function App({ data }) {
             <span style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 8 }}>
               <input type="date" value={janelaIni} onChange={e => setJanelaIni(e.target.value)}
                 style={{ padding: '4px 6px', fontSize: 12, border: '1px solid #D1D5DB', borderRadius: 6 }} />
-              <span style={{ fontSize: 11, color: '#6B7280' }}>até</span>
+              <span style={{ fontSize: 11, color: '#6B7280' }}>atÃ©</span>
               <input type="date" value={janelaFim} onChange={e => setJanelaFim(e.target.value)}
                 style={{ padding: '4px 6px', fontSize: 12, border: '1px solid #D1D5DB', borderRadius: 6 }} />
             </span>
           )}
           <span style={{ marginLeft: 'auto', fontSize: 11, color: '#9CA3AF' }}>
             {janelaResolvida.ini && janelaResolvida.fim 
-              ? `${fmtDateBR(janelaResolvida.ini)} → ${fmtDateBR(janelaResolvida.fim)} · ${dadosGraficoFiltrados.length} pontos`
+              ? `${fmtDateBR(janelaResolvida.ini)} â†’ ${fmtDateBR(janelaResolvida.fim)} Â· ${dadosGraficoFiltrados.length} pontos`
               : ''}
           </span>
         </div>
@@ -979,7 +979,7 @@ function App({ data }) {
               <Line type="monotone" dataKey="cotaPatrim" stroke={FUNDO_CORES[tickerSel].primary} strokeWidth={2} dot={false} 
                 name="Cota Patrimonial" connectNulls />
               <Line type="monotone" dataKey="curvaSaida" stroke="#D85A30" strokeWidth={2} strokeDasharray="6 3" dot={false} 
-                name={`Saída ${percCdiCurva}% CDI`} connectNulls />
+                name={`SaÃ­da ${percCdiCurva}% CDI`} connectNulls />
               <Line type="monotone" dataKey="mercado" stroke="#6B7280" strokeWidth={1.5} dot={false} 
                 name="Fechamento mercado" connectNulls />
             </LineChart>
@@ -988,14 +988,14 @@ function App({ data }) {
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 16 }}>
           <StatCard label="Cota patrimonial" value={fmtMoney(meta.cota_patrimonial_ref)} sub={fmtDateBR(meta.data_ref)} accent={FUNDO_CORES[tickerSel].dark} />
-          <StatCard label="Último mercado" value={ultimoFechamentoMercado ? fmtMoney(ultimoFechamentoMercado.c) : '—'} sub={ultimoFechamentoMercado ? (() => {
+          <StatCard label="Ãšltimo mercado" value={ultimoFechamentoMercado ? fmtMoney(ultimoFechamentoMercado.c) : 'â€”'} sub={ultimoFechamentoMercado ? (() => {
             const duAtras = contarDU(ultimoFechamentoMercado.d, meta.data_ref, feriadosSet);
             const hojeReal = (() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
             const duHoje = contarDU(ultimoFechamentoMercado.d, hojeReal, feriadosSet);
             const du = Math.max(duAtras, duHoje);
-            if (du <= 0) return fmtDateBR(ultimoFechamentoMercado.d) + ' · hoje';
-            if (du === 1) return fmtDateBR(ultimoFechamentoMercado.d) + ' · ontem';
-            return fmtDateBR(ultimoFechamentoMercado.d) + ' · há ' + du + ' pregões (sem negócio desde então)';
+            if (du <= 0) return fmtDateBR(ultimoFechamentoMercado.d) + ' Â· hoje';
+            if (du === 1) return fmtDateBR(ultimoFechamentoMercado.d) + ' Â· ontem';
+            return fmtDateBR(ultimoFechamentoMercado.d) + ' Â· hÃ¡ ' + du + ' pregÃµes (sem negÃ³cio desde entÃ£o)';
           })() : 'sem dado'}
             accent={ultimoFechamentoMercado ? (() => {
               const hojeReal = (() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
@@ -1003,10 +1003,10 @@ function App({ data }) {
               return du >= 3 ? '#B45309' : undefined;
             })() : undefined} />
           <StatCard label="Desconto vs patrim."
-            value={ultimoFechamentoMercado ? fmtPct(((ultimoFechamentoMercado.c / meta.cota_patrimonial_ref) - 1) * 100, 2) : '—'}
+            value={ultimoFechamentoMercado ? fmtPct(((ultimoFechamentoMercado.c / meta.cota_patrimonial_ref) - 1) * 100, 2) : 'â€”'}
             sub={!ultimoFechamentoMercado ? 'sem dado' : (ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? 'mercado abaixo' : 'mercado acima')}
             accent={!ultimoFechamentoMercado ? '#6B7280' : (ultimoFechamentoMercado.c < meta.cota_patrimonial_ref ? '#993C1D' : '#0F6E56')} />
-          <StatCard label="DU até vencimento" 
+          <StatCard label="DU atÃ© vencimento" 
             value={contarDU(meta.data_ref, meta.vencimento, feriadosSet).toString()} 
             sub={fmtDateBR(meta.vencimento)} />
         </div>
@@ -1015,10 +1015,10 @@ function App({ data }) {
       <section style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12, padding: '20px 22px', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <Calculator size={18} style={{ color: '#374151' }} />
-          <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Simulador de Yield até Vencimento</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Simulador de Yield atÃ© Vencimento</h2>
         </div>
         <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 16px' }}>
-          Selecione um ativo e informe o preço de mercado para calcular o yield equivalente, considerando convergência da cota de mercado para a patrimonial até o vencimento.
+          Selecione um ativo e informe o preÃ§o de mercado para calcular o yield equivalente, considerando convergÃªncia da cota de mercado para a patrimonial atÃ© o vencimento.
         </p>
         
         <div style={{ display: 'grid', gridTemplateColumns: '160px 180px 140px 1fr', gap: 12, alignItems: 'flex-end', marginBottom: 16 }}>
@@ -1032,7 +1032,7 @@ function App({ data }) {
             </select>
           </div>
           <div>
-            <label style={{ fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.04em' }}>Preço de mercado (R$)</label>
+            <label style={{ fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 500, letterSpacing: '0.04em' }}>PreÃ§o de mercado (R$)</label>
             <input type="number" step="0.01" value={simPreco}
               onChange={e => setSimPreco(Number(e.target.value))}
               style={{ width: '100%', padding: '8px 10px', marginTop: 4, border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13 }} />
@@ -1044,7 +1044,7 @@ function App({ data }) {
               style={{ width: '100%', padding: '8px 10px', marginTop: 4, border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13 }} />
           </div>
           <div style={{ fontSize: 11, color: '#6B7280', alignSelf: 'flex-end' }}>
-            CDI usado na simulação: {fmtPct(cdiAaAtual, 2)} a.a.<br/>
+            CDI usado na simulaÃ§Ã£o: {fmtPct(cdiAaAtual, 2)} a.a.<br/>
             Cota patrimonial atual: {fmtMoney(metaEfetiva[simTicker].cota_patrimonial_ref)}<br/>
             Vencimento: {fmtDateBR(metaEfetiva[simTicker].vencimento)}
             {yieldSimulado && simCorretagem > 0 && (
@@ -1058,7 +1058,7 @@ function App({ data }) {
             <StatCard 
               label="Yield (% CDI)" 
               value={fmtPct(yieldSimulado.yld_pct_cdi, 2)} 
-              sub={simCorretagem > 0 ? `impacto corretagem: ${yieldSimulado.impacto_corretagem_pp >= 0 ? '+' : ''}${yieldSimulado.impacto_corretagem_pp.toFixed(2).replace('.',',')} pp` : 'líquido de custos do fundo'}
+              sub={simCorretagem > 0 ? `impacto corretagem: ${yieldSimulado.impacto_corretagem_pp >= 0 ? '+' : ''}${yieldSimulado.impacto_corretagem_pp.toFixed(2).replace('.',',')} pp` : 'lÃ­quido de custos do fundo'}
               accent={FUNDO_CORES[simTicker].dark} />
             <StatCard 
               label="Yield Gross-Up (% CDI)" 
@@ -1080,7 +1080,7 @@ function App({ data }) {
         <div style={{ marginTop: 14, padding: '10px 12px', background: '#F9FAFB', borderRadius: 8, fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} />
           <span>
-            Premissa: cota de mercado converge para a patrimonial em {fmtDateBR(metaEfetiva[simTicker].vencimento)}. A cota patrimonial no vencimento é estimada capitalizando a cota atual ({fmtMoney(metaEfetiva[simTicker].cota_patrimonial_ref)}) a {metaEfetiva[simTicker].yld_pct_cdi}% × CDI projetado durante os DU B3 restantes. Custo efetivo de entrada = preço × (1 + corretagem%); o yield é calculado sobre esse custo efetivo. Yield líquido da taxa de adm. do fundo, bruto de eventuais emolumentos B3. Gross-up considera alíquota de 15% (IR mínimo PF).
+            Premissa: cota de mercado converge para a patrimonial em {fmtDateBR(metaEfetiva[simTicker].vencimento)}. A cota patrimonial no vencimento Ã© estimada capitalizando a cota atual ({fmtMoney(metaEfetiva[simTicker].cota_patrimonial_ref)}) a {metaEfetiva[simTicker].yld_pct_cdi}% Ã— CDI projetado durante os DU B3 restantes. Custo efetivo de entrada = preÃ§o Ã— (1 + corretagem%); o yield Ã© calculado sobre esse custo efetivo. Yield lÃ­quido da taxa de adm. do fundo, bruto de eventuais emolumentos B3. Gross-up considera alÃ­quota de 15% (IR mÃ­nimo PF).
           </span>
         </div>
       </section>
@@ -1090,7 +1090,7 @@ function App({ data }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Activity size={16} style={{ color: '#374151' }} />
-            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Configuração</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>ConfiguraÃ§Ã£o</h3>
           </div>
           <button onClick={() => setShowSettings(false)}
             style={{ padding: '4px 10px', fontSize: 11, fontWeight: 500, borderRadius: 6, border: '1px solid #D1D5DB', background: '#FFF', cursor: 'pointer', color: '#6B7280' }}>
@@ -1099,25 +1099,25 @@ function App({ data }) {
         </div>
 
         <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: '1px solid #E5E7EB' }}>
-          <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: '#111827' }}>1. Preços de mercado B3 (Yahoo Finance)</h4>
+          <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: '#111827' }}>1. PreÃ§os de mercado B3 (Yahoo Finance)</h4>
           <p style={{ fontSize: 11, color: '#6B7280', margin: '6px 0 0', lineHeight: 1.5 }}>
-            Os preços de mercado são buscados automaticamente do Yahoo Finance (ISET11.SA, ISEN11.SA, ISTT11.SA, ISNT11.SA, BISE11.SA) através de proxy CORS no carregamento da página. Sem cadastro, sem token. Range: último 1 ano de fechamentos diários.
+            Os preÃ§os de mercado sÃ£o buscados automaticamente do Yahoo Finance (ISET11.SA, ISEN11.SA, ISTT11.SA, ISNT11.SA, BISE11.SA) atravÃ©s de proxy CORS no carregamento da pÃ¡gina. Sem cadastro, sem token. Range: Ãºltimo 1 ano de fechamentos diÃ¡rios.
             <br/>Status: <strong style={{ color: '#374151' }}>{brapiStatus}</strong>
-            {brapiUltAtt && <> · última atualização: {new Date(brapiUltAtt).toLocaleString('pt-BR')}</>}
+            {brapiUltAtt && <> Â· Ãºltima atualizaÃ§Ã£o: {new Date(brapiUltAtt).toLocaleString('pt-BR')}</>}
           </p>
         </div>
 
         <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: '1px solid #E5E7EB' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-            <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: '#111827' }}>2. Atualização automática Itaú (Cota patrim. + PL + Duration)</h4>
+            <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0, color: '#111827' }}>2. AtualizaÃ§Ã£o automÃ¡tica ItaÃº (Cota patrim. + PL + Duration)</h4>
             {itauUltAtt && (
               <span style={{ fontSize: 10, color: '#6B7280' }}>
-                última: {new Date(itauUltAtt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                Ãºltima: {new Date(itauUltAtt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
           </div>
           <p style={{ fontSize: 11, color: '#6B7280', margin: '0 0 10px', lineHeight: 1.5 }}>
-            Baixa os PDFs "Sensibilidade-{'{TICKER}'}.pdf" do Itaú via proxy CORS, parseia e atualiza automaticamente Cota Patrimonial, PL, Duration e Yield % CDI dos 4 fundos. O Itaú atualiza esses PDFs em D-1.
+            Baixa os PDFs "Sensibilidade-{'{TICKER}'}.pdf" do ItaÃº via proxy CORS, parseia e atualiza automaticamente Cota Patrimonial, PL, Duration e Yield % CDI dos 4 fundos. O ItaÃº atualiza esses PDFs em D-1.
           </p>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={atualizarPdfsItau} disabled={itauUpdateStatus === 'loading'}
@@ -1129,7 +1129,7 @@ function App({ data }) {
               }}>
               {itauUpdateStatus === 'loading' && <RefreshCw size={12} className="rfc-spin" />}
               {itauUpdateStatus !== 'loading' && <RefreshCw size={12} />}
-              {itauUpdateStatus === 'loading' ? 'Atualizando...' : 'Atualizar dados Itaú agora'}
+              {itauUpdateStatus === 'loading' ? 'Atualizando...' : 'Atualizar dados ItaÃº agora'}
             </button>
             {itauUpdateMsg && (
               <span style={{
@@ -1142,14 +1142,14 @@ function App({ data }) {
             )}
           </div>
           <p style={{ fontSize: 10, color: '#9CA3AF', margin: '8px 0 0', lineHeight: 1.5 }}>
-            Tenta proxies em cascata: allorigins.win → corsproxy.io → codetabs.com. Se todos falharem, atualize manualmente na seção 3 abaixo.
+            Tenta proxies em cascata: allorigins.win â†’ corsproxy.io â†’ codetabs.com. Se todos falharem, atualize manualmente na seÃ§Ã£o 3 abaixo.
           </p>
         </div>
 
         <div style={{ marginBottom: 20, paddingBottom: 18, borderBottom: '1px solid #E5E7EB' }}>
-          <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 6px', color: '#111827' }}>3. Cota Patrimonial (manual — fallback se auto-update falhar)</h4>
+          <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 6px', color: '#111827' }}>3. Cota Patrimonial (manual â€” fallback se auto-update falhar)</h4>
           <p style={{ fontSize: 11, color: '#6B7280', margin: '0 0 10px', lineHeight: 1.5 }}>
-            Valores aqui aparecem automaticamente quando você usa a seção 2. Se o auto-update falhar, edite os valores manualmente — o cabeçalho dos PDFs "Sensibilidade-{'{TICKER}'}.pdf" mostra a cota patrimonial mais recente.
+            Valores aqui aparecem automaticamente quando vocÃª usa a seÃ§Ã£o 2. Se o auto-update falhar, edite os valores manualmente â€” o cabeÃ§alho dos PDFs "Sensibilidade-{'{TICKER}'}.pdf" mostra a cota patrimonial mais recente.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
             {ALL_TICKERS.map(t => {
@@ -1161,7 +1161,7 @@ function App({ data }) {
               return (
                 <div key={t} style={{ padding: 10, background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: FUNDO_CORES[t].dark, marginBottom: 6 }}>{t}</div>
-                  <label style={{ fontSize: 10, color: '#6B7280', display: 'block' }}>Data referência</label>
+                  <label style={{ fontSize: 10, color: '#6B7280', display: 'block' }}>Data referÃªncia</label>
                   <input type="date"
                     defaultValue={ultIso || baseFundo.data_ref}
                     onBlur={e => {
@@ -1194,10 +1194,10 @@ function App({ data }) {
         </div>
 
         <div>
-          <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 6px', color: '#111827' }}>4. CDI (avançado)</h4>
+          <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 6px', color: '#111827' }}>4. CDI (avanÃ§ado)</h4>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151', marginBottom: 8 }}>
             <input type="checkbox" checked={usarManual} onChange={e => setUsarManual(e.target.checked)} />
-            Forçar CDI a.a. manual (ignorar série BCB)
+            ForÃ§ar CDI a.a. manual (ignorar sÃ©rie BCB)
           </label>
           {usarManual && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 400 }}>
@@ -1207,8 +1207,8 @@ function App({ data }) {
             </div>
           )}
           <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 8, lineHeight: 1.6 }}>
-            Calendário B3: {DATA.feriados.length} feriados bancários (2025-2029).
-            CDI: {cdiStatus === 'success' ? `${Object.keys(cdiSerie).length} cotações diárias da série 12 do BCB` : 'modo manual ativo'}.
+            CalendÃ¡rio B3: {DATA.feriados.length} feriados bancÃ¡rios (2025-2029).
+            CDI: {cdiStatus === 'success' ? `${Object.keys(cdiSerie).length} cotaÃ§Ãµes diÃ¡rias da sÃ©rie 12 do BCB` : 'modo manual ativo'}.
           </div>
         </div>
       </section>
@@ -1292,8 +1292,8 @@ function App({ data }) {
 
 
       <footer style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'center', paddingTop: 16, borderTop: '1px solid #E5E7EB', lineHeight: 1.6 }}>
-        Material informativo Engage, sem caráter de recomendação de investimento. Dados de domínio público (Itaú Asset Management, B3, Banco Central do Brasil).<br/>
-        Simulações são meramente indicativas e não representam promessa de rentabilidade. Fundos sujeitos a riscos de mercado e crédito.
+        Material informativo Engage, sem carÃ¡ter de recomendaÃ§Ã£o de investimento. Dados de domÃ­nio pÃºblico (ItaÃº Asset Management, B3, Banco Central do Brasil).<br/>
+        SimulaÃ§Ãµes sÃ£o meramente indicativas e nÃ£o representam promessa de rentabilidade. Fundos sujeitos a riscos de mercado e crÃ©dito.
       </footer>
     </div>
   );
@@ -1307,7 +1307,7 @@ function AppLoader() {
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(json => setData(json))
       .catch(e => {
-        // Fallback: fetch falha tipicamente quando o arquivo é aberto via
+        // Fallback: fetch falha tipicamente quando o arquivo Ã© aberto via
         // duplo-clique (file://), onde o navegador bloqueia fetch por CORS.
         // Usa o snapshot embutido por data.js (ver <script> no <head>) se existir.
         if (typeof window !== 'undefined' && window.__ENGAGE_DATA__) {
@@ -1321,8 +1321,8 @@ function AppLoader() {
     e('strong', null, 'Erro ao carregar dados'),
     e('div', { style: { color: '#6B7280' } }, err),
     e('div', { style: { color: '#9CA3AF', fontSize: 12, marginTop: 12 } },
-      'Se abriu o arquivo com duplo-clique, o navegador bloqueia o carregamento local por segurança (CORS). ' +
-      'Rode "python -m http.server" na pasta e abra http://localhost:8000, ou use a versão publicada.')
+      'Se abriu o arquivo com duplo-clique, o navegador bloqueia o carregamento local por seguranÃ§a (CORS). ' +
+      'Rode "python -m http.server" na pasta e abra http://localhost:8000, ou use a versÃ£o publicada.')
   );
   if (!data) return e('div', { className: 'loading-screen' },
     e('div', { className: 'loading-spinner' }),
