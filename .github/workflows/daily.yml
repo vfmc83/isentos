@@ -2,21 +2,29 @@ name: Daily data update
 
 on:
   schedule:
-    # 21:00 UTC = 18:00 BRT (PDFs Itaú já foram publicados às ~9h)
-    - cron: '7 21 * * 1-5'
-    # 12:00 UTC = 09:00 BRT (apos PDFs Itau, atualiza cota de hoje cedo)
-    - cron: '7 12 * * 1-5'
+    # Repo publico = GitHub Actions ILIMITADO (sem custo de minutos).
+    # Rodamos de hora em hora durante o pregao da B3 para a cota de
+    # mercado nunca ficar mais de ~1h atrasada. Horarios em UTC.
+    # Pregao B3 ~10h-18h BRT = 13h-21h UTC. Cobrimos 12h-22h UTC
+    # (09h-19h BRT), uma folga antes/depois. Minuto 7 evita o pico
+    # do topo da hora (onde o agendador do GitHub costuma atrasar).
+    - cron: '7 12-22 * * 1-5'
   # Permite rodar manualmente pela aba Actions do GitHub
   workflow_dispatch:
-  # Permite disparo externo confiável (ex.: cron-job.org) via API repository_dispatch
+  # Permite disparo externo confiavel (ex.: cron-job.org) via API repository_dispatch
   repository_dispatch:
     types: [run-daily]
-  # Roda automaticamente também quando você faz push (útil para o primeiro deploy)
+  # Roda automaticamente tambem quando voce faz push (util para o primeiro deploy)
   push:
     branches: [ main ]
     paths:
       - 'scripts/build_data.py'
       - '.github/workflows/daily.yml'
+
+# Evita que duas execucoes agendadas colidam no push (uma espera a outra).
+concurrency:
+  group: build-data
+  cancel-in-progress: false
 
 jobs:
   build:
