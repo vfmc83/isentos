@@ -750,14 +750,20 @@ function App({ data }) {
     const dus = listarDU(s2DataCompra, s2DataVenda, feriadosSet);
     const du = Math.max(dus.length - 1, 1);
     const rentAa = Math.pow(1 + rentNominal, 252 / du) - 1;
-    // CDI realizado acumulado no periodo (produto dos fatores diarios)
+    // CDI do periodo: realizado (BCB serie 12) onde ha dado; projetado (CDI a.a. corrente) no restante.
+    // Antes, dias sem dado (futuros) eram ignorados: o denominador cobria menos dias que o retorno.
+    const cdiDiaProjTrade = Math.pow(1 + cdiAaAtual / 100, 1 / 252) - 1;
     let cdiAcum = 1;
-    let cdiCount = 0;
+    let duReal = 0;
+    let duProj = 0;
+    let ultimoCdiReal = null;
     for (let i = 1; i < dus.length; i++) {
       const c = cdiSerie[dus[i]];
-      if (c != null) { cdiAcum *= (1 + c); cdiCount++; }
+      if (c != null) { cdiAcum *= (1 + c); duReal++; ultimoCdiReal = dus[i]; }
+      else { cdiAcum *= (1 + cdiDiaProjTrade); duProj++; }
     }
     cdiAcum = cdiAcum - 1;
+    const cdiCount = duReal + duProj;
     const pctCdi = cdiAcum > 0 ? (rentNominal / cdiAcum) * 100 : null;
     // Aliquota regressiva por dias corridos
     const diasCorr = Math.round((parseDate(s2DataVenda) - parseDate(s2DataCompra)) / 86400000);
@@ -770,9 +776,9 @@ function App({ data }) {
     const pctCdiGross = cdiAcum > 0 ? (grossUp / cdiAcum) * 100 : null;
     return {
       custo, liquido, rentNominal, rentAa, du, diasCorr,
-      cdiAcum, cdiCount, pctCdi, aliq, grossUp, pctCdiGross,
+      cdiAcum, cdiCount, duReal, duProj, ultimoCdiReal, cdiAaProjUsado: cdiAaAtual, pctCdi, aliq, grossUp, pctCdiGross,
     };
-  }, [s2PrecoCompra, s2PrecoVenda, s2CorrCompra, s2CorrVenda, s2DataCompra, s2DataVenda, cdiSerie, feriadosSet]);
+  }, [s2PrecoCompra, s2PrecoVenda, s2CorrCompra, s2CorrVenda, s2DataCompra, s2DataVenda, cdiSerie, cdiAaAtual, feriadosSet]);
   const ultimoFechamentoMercado = (historicoMercado && historicoMercado.length)
     ? historicoMercado[historicoMercado.length - 1]
     : (meta && meta.ultimo_mercado != null
@@ -1213,8 +1219,13 @@ function App({ data }) {
         {simTrade && !simTrade.erro && (
           <div>
             <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
-              Custo efetivo de compra: <strong>{fmtMoney(simTrade.custo)}</strong> &middot; L&iacute;quido de venda: <strong>{fmtMoney(simTrade.liquido)}</strong> &middot; {simTrade.du} DU &middot; {simTrade.diasCorr} dias corridos
+              Custo efetivo de compra: <strong>{fmtMoney(simTrade.custo)}</strong> &middot; L&iacute;quido de venda: <strong>{fmtMoney(simTrade.liquido)}</strong> &middot; {simTrade.du} DU &middot; {simTrade.diasCorr} dias corridos &middot; CDI do per&iacute;odo: <strong>{fmtPct(simTrade.cdiAcum * 100, 2)}</strong> ({simTrade.duReal} DU realizado{simTrade.duProj > 0 ? ` + ${simTrade.duProj} DU projetado a ${fmtPct(simTrade.cdiAaProjUsado, 2)} a.a.` : ''})
             </div>
+            {simTrade.duProj > 0 && (
+              <div style={{ fontSize: 11, color: '#854F0B', background: '#FAEEDA', border: '1px solid #F0D9AE', borderRadius: 8, padding: '8px 12px', marginBottom: 12, lineHeight: 1.5 }}>
+                Simula&ccedil;&atilde;o com perna futura: {simTrade.duProj} dos {simTrade.du} DU ainda n&atilde;o t&ecirc;m CDI realizado e foram projetados a {fmtPct(simTrade.cdiAaProjUsado, 2)} a.a. (CDI corrente, mantido constante). O % do CDI muda se a Selic mudar.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
               <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: '#6B7280' }}>RENT. NOMINAL</div>
@@ -1229,7 +1240,7 @@ function App({ data }) {
               <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: '#6B7280' }}>% DO CDI</div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: '#374151' }}>{simTrade.pctCdi != null ? fmtPct(simTrade.pctCdi, 1) : 'n/d'}</div>
-                <div style={{ fontSize: 11, color: '#9CA3AF' }}>CDI realizado no per&iacute;odo</div>
+                <div style={{ fontSize: 11, color: '#9CA3AF' }}>{simTrade.duProj === 0 ? 'CDI realizado no per\u00edodo' : (simTrade.duReal === 0 ? `CDI projetado ${fmtPct(simTrade.cdiAaProjUsado, 2)} a.a.` : `realizado at\u00e9 ${fmtDateBR(simTrade.ultimoCdiReal)} + projetado`)}</div>
               </div>
               <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: '#6B7280' }}>GROSS-UP (% CDI)</div>
@@ -1238,7 +1249,7 @@ function App({ data }) {
               </div>
             </div>
             <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 12, lineHeight: 1.6 }}>
-              Custo = pre&ccedil;o&times;(1+corr%); l&iacute;quido = pre&ccedil;o&times;(1&minus;corr%). % do CDI compara a rentabilidade ao CDI realizado (BCB s&eacute;rie 12) acumulado nos dias &uacute;teis entre compra e venda. Gross-up usa al&iacute;quota regressiva (&le;180d 22,5%; &le;360d 20%; &le;720d 17,5%; &gt;720d 15%): equivalente_bruto = rent&divide;(1&minus;al&iacute;quota).
+              Custo = pre&ccedil;o&times;(1+corr%); l&iacute;quido = pre&ccedil;o&times;(1&minus;corr%). % do CDI compara a rentabilidade ao CDI acumulado nos dias &uacute;teis entre compra e venda: realizado (BCB s&eacute;rie 12) at&eacute; a &uacute;ltima data dispon&iacute;vel e projetado pelo CDI a.a. corrente da&iacute; em diante. Gross-up usa al&iacute;quota regressiva (&le;180d 22,5%; &le;360d 20%; &le;720d 17,5%; &gt;720d 15%): equivalente_bruto = rent&divide;(1&minus;al&iacute;quota).
             </div>
           </div>
         )}
